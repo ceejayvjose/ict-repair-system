@@ -13,28 +13,37 @@ export default function App() {
     problem: '',
     requestee: '',
   });
-
   // Track ticket
   const [ticketNumberInput, setTicketNumberInput] = useState('');
   const [trackedTicket, setTrackedTicket] = useState(null);
   const [trackingError, setTrackingError] = useState('');
-
   // Modal
   const [showModal, setShowModal] = useState(false);
   const [newTicketNumber, setNewTicketNumber] = useState('');
-
   // Login data
   const [loginData, setLoginData] = useState({
     email: '',
     password: '',
     code: '',
   });
-
   const [generatedCode, setGeneratedCode] = useState('');
+  const [enteredVerificationCode, setEnteredVerificationCode] = useState('');
+  const [agreedToRedirect, setAgreedToRedirect] = useState(false);
   const [darkMode, setDarkMode] = useState(() => {
     const savedMode = localStorage.getItem('darkMode');
     return savedMode === 'true';
   });
+
+  // NEW: Admin popup visibility
+  const [showAdminPopup, setShowAdminPopup] = useState(false);
+
+  // Generate 4-digit verification code when entering submit page
+  useEffect(() => {
+    if (view === 'submit') {
+      const code = String(Math.floor(1000 + Math.random() * 9000));
+      setGeneratedCode(code);
+    }
+  }, [view]);
 
   // Fetch tickets
   const fetchTickets = async () => {
@@ -42,13 +51,11 @@ export default function App() {
       .from('tickets')
       .select('*')
       .order('created_at', { ascending: false });
-
     if (error) {
       console.error('Error fetching tickets:', error);
       alert('Failed to load tickets: ' + error.message);
       return;
     }
-
     setTickets(data || []);
   };
 
@@ -59,14 +66,25 @@ export default function App() {
       .select('message')
       .order('created_at', { ascending: false })
       .limit(1);
-
     if (error) console.error(error);
-    else setAdminMessage(data[0]?.message || '');
+    else {
+      const msg = data[0]?.message || '';
+      setAdminMessage(msg);
+      if (msg && view === 'home') {
+        setShowAdminPopup(true);
+      }
+    }
   };
 
   // Submit ticket
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Validate entered code
+    if (!enteredVerificationCode || enteredVerificationCode !== generatedCode) {
+      alert('Please enter the correct 4-digit verification code.');
+      return;
+    }
 
     const newTicket = {
       office: formData.office,
@@ -76,20 +94,16 @@ export default function App() {
       requestee: formData.requestee,
       status: 'Evaluation',
     };
-
     const { data, error } = await supabase
       .from('tickets')
       .insert([newTicket])
       .select('id, ticket_number');
-
     if (error) {
       console.error('Supabase Insert Error:', error);
       alert(`Failed to submit ticket: ${error.message}`);
       return;
     }
-
-    fetchTickets(); // Refresh tickets
-
+    fetchTickets();
     setFormData({
       office: '',
       repairType: 'Desktop',
@@ -97,9 +111,9 @@ export default function App() {
       problem: '',
       requestee: '',
     });
-
     setNewTicketNumber(data[0].ticket_number);
-    setShowModal(true);
+    setEnteredVerificationCode('');
+    setShowModal(true); // Show success modal
   };
 
   // Update ticket
@@ -108,7 +122,6 @@ export default function App() {
       .from('tickets')
       .update(updatedTicket)
       .eq('id', updatedTicket.id);
-
     if (!error) {
       fetchTickets();
     }
@@ -117,9 +130,7 @@ export default function App() {
   // Delete ticket
   const handleDeleteTicket = async (ticketId) => {
     if (!window.confirm('Are you sure you want to delete this ticket?')) return;
-
     const { error } = await supabase.from('tickets').delete().eq('id', ticketId);
-
     if (!error) {
       fetchTickets();
     } else {
@@ -130,15 +141,12 @@ export default function App() {
   // Track ticket
   const handleTrackTicket = () => {
     const input = ticketNumberInput.trim();
-
     if (!input) {
       setTrackingError('Please enter a ticket number.');
       setTrackedTicket(null);
       return;
     }
-
     const found = tickets.find((t) => t.ticket_number === input);
-
     if (found) {
       setTrackedTicket(found);
       setTrackingError('');
@@ -150,47 +158,34 @@ export default function App() {
 
   // Post message
   const handlePostMessage = async () => {
-    // Clear old message
     await supabase.from('admin_messages').delete().neq('id', 0);
-
-    // Insert new message
     const { error } = await supabase.from('admin_messages').insert([
-      {
-        message: adminMessage,
-      },
+      { message: adminMessage },
     ]);
-
     if (!error) {
       alert('Message posted to users!');
+      setShowAdminPopup(true);
     }
   };
 
-  // Admin Login with 4-digit code
+  // Admin Login
   const handleAdminLogin = async (e) => {
     e.preventDefault();
-
     const { email, password, code } = loginData;
-
     if (code !== generatedCode) {
       alert('Invalid code. Please enter the correct 4-digit code.');
       return;
     }
-
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
       alert('Login failed: ' + error.message);
       return;
     }
-
     setUser(data.user);
     setView('admin');
   };
 
-  // Generate 4-digit code when entering login page
+  // Generate admin login code
   useEffect(() => {
     if (view === 'adminLogin') {
       const code = String(Math.floor(1000 + Math.random() * 9000));
@@ -206,11 +201,9 @@ export default function App() {
         setUser(data.user);
         setView('admin');
       }
-
       fetchTickets();
       fetchAdminMessage();
     };
-
     checkUser();
   }, []);
 
@@ -259,18 +252,6 @@ export default function App() {
       </header>
 
       <main className="container mx-auto p-6 space-y-8">
-        {/* Admin Message Banner */}
-        {adminMessage && (
-          <div
-            className={`${
-              darkMode ? 'bg-yellow-900 border-l-4 border-yellow-600 text-yellow-200' : 'bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700'
-            } p-4 mb-4 rounded-md`}
-          >
-            <p className="font-bold">Notice from Admin</p>
-            <p>{adminMessage}</p>
-          </div>
-        )}
-
         {/* Home View */}
         {view === 'home' && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -283,7 +264,6 @@ export default function App() {
               <h2 className="text-xl font-bold mb-2">Submit Ticket</h2>
               <p>Request a repair for ICT equipment</p>
             </div>
-
             <div
               onClick={() => setView('track')}
               className={`${
@@ -293,7 +273,6 @@ export default function App() {
               <h2 className="text-xl font-bold mb-2">Track Ticket</h2>
               <p>Check the status of your repair request</p>
             </div>
-
             <div
               onClick={() => setView('adminLogin')}
               className={`${
@@ -378,6 +357,38 @@ export default function App() {
                   } mt-1 block w-full rounded-md border shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200`}
                 />
               </div>
+
+              {/* ✅ 4-Digit Verification Code Display & Input */}
+              <div className={`p-4 rounded-md ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                <h3 className="font-medium mb-2">Verification Step</h3>
+                <p className="text-sm mb-2">
+                  Enter the 4-digit code shown below to confirm your submission.
+                </p>
+                <div className="mb-2">
+                  <span
+                    className={`inline-block px-4 py-2 text-lg font-bold tracking-widest ${
+                      darkMode ? 'bg-gray-600 text-blue-400' : 'bg-white text-blue-600'
+                    } rounded border`}
+                  >
+                    {generatedCode}
+                  </span>
+                </div>
+                <input
+                  type="text"
+                  maxLength={4}
+                  value={enteredVerificationCode}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/[^0-9]/g, '');
+                    setEnteredVerificationCode(value);
+                  }}
+                  required
+                  placeholder="Enter code above"
+                  className={`mt-1 block w-full rounded-md border ${
+                    darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'
+                  } focus:border-blue-500 focus:ring focus:ring-blue-200 text-center text-lg`}
+                />
+              </div>
+
               <button
                 type="submit"
                 className={`${
@@ -398,7 +409,6 @@ export default function App() {
             } p-6 rounded-lg shadow-md max-w-2xl mx-auto`}
           >
             <h2 className="text-xl font-semibold mb-4">Track Your Ticket</h2>
-
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium">Enter Ticket Number</label>
@@ -421,7 +431,6 @@ export default function App() {
                   />
                 </div>
               </div>
-
               <button
                 onClick={handleTrackTicket}
                 className={`${
@@ -430,11 +439,9 @@ export default function App() {
               >
                 Track Ticket
               </button>
-
               {trackingError && (
                 <p className={`${darkMode ? 'text-red-400' : 'text-red-500'} text-sm`}>{trackingError}</p>
               )}
-
               {trackedTicket && (
                 <div
                   className={`${
@@ -484,7 +491,6 @@ export default function App() {
             } p-6 rounded-lg shadow-md max-w-md mx-auto`}
           >
             <h2 className="text-xl font-semibold mb-4">Admin Login</h2>
-
             <div className="mb-4 text-center">
               <p className="text-sm">Enter the 4-digit code below to continue:</p>
               <div
@@ -495,7 +501,6 @@ export default function App() {
                 {generatedCode}
               </div>
             </div>
-
             <form onSubmit={handleAdminLogin} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium">Email</label>
@@ -538,7 +543,6 @@ export default function App() {
                   } mt-1 block w-full rounded-md border shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 text-center text-lg tracking-widest`}
                 />
               </div>
-
               <button
                 type="submit"
                 className={`${
@@ -566,7 +570,29 @@ export default function App() {
         )}
       </main>
 
-      {/* Ticket Submission Modal */}
+      {/* ✅ POPUP: Admin Message Popup */}
+      {showAdminPopup && adminMessage && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div
+            className={`${
+              darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'
+            } p-6 rounded-lg shadow-lg max-w-md w-full`}
+          >
+            <h3 className="text-xl font-bold mb-4 text-yellow-500">Notice from Admin</h3>
+            <p className="mb-6">{adminMessage}</p>
+            <button
+              onClick={() => setShowAdminPopup(false)}
+              className={`${
+                darkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-600 hover:bg-blue-700'
+              } w-full text-white py-2 px-4 rounded-md transition`}
+            >
+              I Understand
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ✅ MODAL: Ticket Submission Success + Redirect Agreement */}
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div
@@ -578,19 +604,51 @@ export default function App() {
             <p className="mb-4">
               Your ticket number is: <span className="font-bold text-blue-400">{newTicketNumber}</span>
             </p>
-            <p className={`${darkMode ? 'text-gray-400' : 'text-gray-600'} text-sm mb-6`}>
-              Please keep this number for future reference.
-            </p>
+            <p className="mb-4">Please keep this number for future reference.</p>
+
+            {/* Checkbox for agreement */}
+            <div className="flex items-start mb-4">
+              <input
+                type="checkbox"
+                id="agreeRedirect"
+                checked={agreedToRedirect}
+                onChange={(e) => setAgreedToRedirect(e.target.checked)}
+                className="mt-1 h-4 w-4 text-blue-600 rounded focus:ring-blue-500"
+              />
+              <label htmlFor="agreeRedirect" className="ml-2 text-sm">
+                I agree to upload my report file in the next website{' '}
+                <a
+                  href="https://docs.google.com/forms/d/e/1FAIpQLSeS_9axdB3it0MbZ1LrZnKfdVrro7p2x9ZqBslcj6W_h2UAMw/viewform "
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-500 underline"
+                >
+                  (click to preview)
+                </a>
+              </label>
+            </div>
+
             <button
               onClick={() => {
+                if (!agreedToRedirect) {
+                  alert('You must agree to proceed.');
+                  return;
+                }
                 setShowModal(false);
                 setView('home');
+                window.location.href =
+                  'https://docs.google.com/forms/d/e/1FAIpQLSeS_9axdB3it0MbZ1LrZnKfdVrro7p2x9ZqBslcj6W_h2UAMw/viewform?usp=sharing&ouid=109247182578013546765';
               }}
+              disabled={!agreedToRedirect}
               className={`${
-                darkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-600 hover:bg-blue-700'
+                agreedToRedirect
+                  ? darkMode
+                    ? 'bg-blue-600 hover:bg-blue-700'
+                    : 'bg-blue-600 hover:bg-blue-700'
+                  : 'bg-gray-400 cursor-not-allowed'
               } w-full text-white py-2 px-4 rounded-md transition`}
             >
-              Close
+              Continue to Report Upload
             </button>
           </div>
         </div>
@@ -651,7 +709,6 @@ function AdminPanel({
           </button>
         </div>
       </section>
-
       <section>
         <h3 className={`font-medium text-lg mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
           Repair Statistics
@@ -675,7 +732,6 @@ function AdminPanel({
           ))}
         </div>
       </section>
-
       <section>
         <h3 className={`font-medium text-lg mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
           Ticket Management
