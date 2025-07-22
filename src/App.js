@@ -234,11 +234,6 @@ export default function App() {
     setNowServing(ticket);
   };
 
-  // Clear now serving
-  const clearNowServing = () => {
-    setNowServing(null);
-  };
-
   // NEW: Admin popup visibility
   const [showAdminPopup, setShowAdminPopup] = useState(false);
 
@@ -307,12 +302,7 @@ export default function App() {
                   <p><span className="font-medium">Now Serving:</span> #{nowServing.ticket_number}</p>
                   <p><span className="font-medium">Requestee:</span> {nowServing.requestee}</p>
                   <p><span className="font-medium">Issue:</span> {nowServing.problem}</p>
-                  <button
-                    onClick={clearNowServing}
-                    className="mt-2 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded"
-                  >
-                    Clear
-                  </button>
+                  {/* ✅ Removed Clear Button */}
                 </div>
               ) : (
                 <p>No ticket currently being served.</p>
