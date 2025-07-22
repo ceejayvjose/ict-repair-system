@@ -34,7 +34,7 @@ export default function App() {
     return savedMode === 'true';
   });
 
-  // NEW: Queue - Now Serving
+  // NEW: Now serving from DB
   const [nowServing, setNowServing] = useState(null);
 
   // Clock state
@@ -229,10 +229,78 @@ export default function App() {
     return () => clearInterval(timer);
   }, []);
 
-  // Set now serving
-  const setAsNowServing = (ticket) => {
-    setNowServing(ticket);
+  // Fetch currently serving ticket
+  const fetchCurrentTicket = async () => {
+    const { data, error } = await supabase
+      .from('current_ticket')
+      .select('ticket_id')
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (error) {
+      console.error('Error fetching current ticket:', error);
+      return;
+    }
+
+    if (data && data.length > 0 && data[0].ticket_id) {
+      const ticket = tickets.find(t => t.id === data[0].ticket_id);
+      setNowServing(ticket || null);
+    } else {
+      setNowServing(null);
+    }
   };
+
+  // Set now serving (save to Supabase)
+  const setAsNowServing = async (ticket) => {
+    if (!user) {
+      alert('Only admins can set the current ticket.');
+      return;
+    }
+
+    const { error } = await supabase.from('current_ticket').insert([
+      { ticket_id: ticket.id }
+    ]);
+
+    if (error) {
+      alert('Failed to update current ticket: ' + error.message);
+    } else {
+      setNowServing(ticket);
+    }
+  };
+
+  // Clear now serving
+  const clearNowServing = async () => {
+    if (!user) return;
+    const { error } = await supabase.from('current_ticket').delete().neq('id', 0);
+    if (!error) {
+      setNowServing(null);
+    }
+  };
+
+  // Listen for real-time updates
+  useEffect(() => {
+    const channel = supabase
+      .channel('current-ticket-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'current_ticket'
+        },
+        () => {
+          fetchCurrentTicket(); // Refresh when change detected
+        }
+      )
+      .subscribe();
+
+    // Initial fetch
+    fetchCurrentTicket();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [tickets]);
 
   // NEW: Admin popup visibility
   const [showAdminPopup, setShowAdminPopup] = useState(false);
@@ -302,7 +370,6 @@ export default function App() {
                   <p><span className="font-medium">Now Serving:</span> #{nowServing.ticket_number}</p>
                   <p><span className="font-medium">Requestee:</span> {nowServing.requestee}</p>
                   <p><span className="font-medium">Issue:</span> {nowServing.problem}</p>
-                  {/* ✅ Removed Clear Button */}
                 </div>
               ) : (
                 <p>No ticket currently being served.</p>
