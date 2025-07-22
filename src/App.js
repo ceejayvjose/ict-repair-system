@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from './supabaseClient';
 
-// Move AdminPanel BEFORE usage to fix JSX parsing
+// Move AdminPanel before usage
 function AdminPanel({
   tickets,
   onUpdateTicket,
@@ -11,7 +11,6 @@ function AdminPanel({
   getTypeCount,
   handleDeleteTicket,
   darkMode,
-  nowServing,
   setAsNowServing,
 }) {
   return (
@@ -159,7 +158,7 @@ function AdminPanel({
                         onClick={() => setAsNowServing(ticket)}
                         className="text-blue-500 hover:text-blue-400 text-xs"
                       >
-                        Now Serving
+                        Set as Now Serving
                       </button>
                       <button
                         onClick={() => onUpdateTicket({ ...ticket, status: 'Repaired' })}
@@ -256,6 +255,70 @@ export default function App() {
     if (error) console.error(error);
     else setAdminMessage(data[0]?.message || '');
   };
+
+  // Fetch currently serving ticket
+  const fetchCurrentTicket = async () => {
+    const { data, error } = await supabase
+      .from('current_ticket')
+      .select('ticket_id')
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (error) {
+      console.error('Error fetching current ticket:', error);
+      return;
+    }
+
+    if (data && data.length > 0 && data[0].ticket_id) {
+      const ticket = tickets.find(t => t.id === data[0].ticket_id);
+      setNowServing(ticket || null);
+    } else {
+      setNowServing(null);
+    }
+  };
+
+  // Set now serving (save to Supabase)
+  const setAsNowServing = async (ticket) => {
+    if (!user) {
+      alert('Only admins can set the current ticket.');
+      return;
+    }
+
+    const { error } = await supabase.from('current_ticket').insert([
+      { ticket_id: ticket.id }
+    ]);
+
+    if (!error) {
+      setNowServing(ticket);
+    } else {
+      alert('Failed to update: ' + error.message);
+    }
+  };
+
+  // Listen for real-time updates
+  useEffect(() => {
+    const channel = supabase
+      .channel('current-ticket-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'current_ticket'
+        },
+        () => {
+          fetchCurrentTicket(); // Refresh when change detected
+        }
+      )
+      .subscribe();
+
+    // Initial fetch
+    fetchCurrentTicket();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [tickets]);
 
   // Submit ticket
   const handleSubmit = async (e) => {
@@ -405,11 +468,6 @@ export default function App() {
     }, 1000);
     return () => clearInterval(timer);
   }, []);
-
-  // Set now serving
-  const setAsNowServing = (ticket) => {
-    setNowServing(ticket);
-  };
 
   return (
     <div className={`min-h-screen ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-900'} transition-colors duration-300`}>
@@ -794,7 +852,6 @@ export default function App() {
             getTypeCount={(type) => tickets.filter((t) => t.repair_type === type).length}
             handleDeleteTicket={handleDeleteTicket}
             darkMode={darkMode}
-            nowServing={nowServing}
             setAsNowServing={setAsNowServing}
           />
         )}
