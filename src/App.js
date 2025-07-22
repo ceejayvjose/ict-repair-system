@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from './supabaseClient';
 
-// Move AdminPanel before usage to fix JSX parsing
+// Move AdminPanel before usage to avoid JSX parsing errors
 function AdminPanel({
   tickets,
   onUpdateTicket,
@@ -330,14 +330,8 @@ export default function App() {
     // Generate ticket number: YYYYMMDD + sequential
     const today = new Date();
     const datePrefix = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}`;
-
-    // Refetch today's tickets from DB (avoid stale state)
-    const { data: todayTickets } = await supabase
-      .from('tickets')
-      .select('ticket_number')
-      .ilike('ticket_number', `${datePrefix}%`);
-
-    const nextNum = String((todayTickets?.length || 0) + 1).padStart(5, '0'); // 00001 format
+    const existingTodayTickets = tickets.filter(t => t.ticket_number.startsWith(datePrefix));
+    const nextNum = String(existingTodayTickets.length + 1).padStart(5, '0'); // 00001 format
     const fullTicketNumber = datePrefix + nextNum;
 
     const newTicket = {
@@ -349,15 +343,12 @@ export default function App() {
       status: 'Evaluation',
       ticket_number: fullTicketNumber,
     };
-
     const { error } = await supabase.from('tickets').insert([newTicket]);
-
     if (error) {
       console.error('Supabase Insert Error:', error);
       alert(`Failed to submit ticket: ${error.message}`);
       return;
     }
-
     fetchTickets(); // Refresh tickets
     setFormData({
       office: '',
