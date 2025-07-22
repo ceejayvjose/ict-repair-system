@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from './supabaseClient';
 
-// Move AdminPanel before usage to fix JSX parsing
+// Move AdminPanel BEFORE usage to fix JSX parsing
 function AdminPanel({
   tickets,
   onUpdateTicket,
@@ -11,6 +11,8 @@ function AdminPanel({
   getTypeCount,
   handleDeleteTicket,
   darkMode,
+  nowServing,
+  setAsNowServing,
 }) {
   return (
     <div className="space-y-8">
@@ -152,7 +154,13 @@ function AdminPanel({
                     />
                   </td>
                   <td className="py-2 px-4 border-b text-center">
-                    <div className="flex items-center justify-center gap-3">
+                    <div className="flex flex-col gap-1">
+                      <button
+                        onClick={() => setAsNowServing(ticket)}
+                        className="text-blue-500 hover:text-blue-400 text-xs"
+                      >
+                        Now Serving
+                      </button>
                       <button
                         onClick={() => onUpdateTicket({ ...ticket, status: 'Repaired' })}
                         className="text-green-500 hover:text-green-400 text-xs"
@@ -210,11 +218,11 @@ export default function App() {
     return savedMode === 'true';
   });
 
-  // Clock state
-  const [currentTime, setCurrentTime] = useState(new Date());
-
   // NEW: Queue - Now Serving
   const [nowServing, setNowServing] = useState(null);
+
+  // Clock state
+  const [currentTime, setCurrentTime] = useState(new Date());
 
   // Generate 4-digit verification code when entering submit page
   useEffect(() => {
@@ -786,6 +794,8 @@ export default function App() {
             getTypeCount={(type) => tickets.filter((t) => t.repair_type === type).length}
             handleDeleteTicket={handleDeleteTicket}
             darkMode={darkMode}
+            nowServing={nowServing}
+            setAsNowServing={setAsNowServing}
           />
         )}
       </main>
