@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from './supabaseClient';
 
-// Move AdminPanel before usage to fix JSX parsing
+// Move AdminPanel before usage to avoid JSX parsing errors
 function AdminPanel({
   tickets,
   onUpdateTicket,
@@ -12,166 +12,311 @@ function AdminPanel({
   handleDeleteTicket,
   darkMode,
 }) {
+  const [selectedTicket, setSelectedTicket] = useState(null);
+
+  const openTicketModal = (ticket) => {
+    setSelectedTicket({ ...ticket });
+  };
+
+  const closeModal = () => {
+    setSelectedTicket(null);
+  };
+
+  const saveChanges = async () => {
+    await onUpdateTicket(selectedTicket);
+    closeModal();
+  };
+
   return (
-    <div className="space-y-8">
-      <section>
-        <h2 className={`text-xl font-semibold mb-4 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-          Admin Dashboard
-        </h2>
-        <div
-          className={`${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'} p-6 rounded-lg shadow-md`}
-        >
-          <h3 className="font-medium text-lg mb-2">Post a Message to Users</h3>
-          <textarea
-            value={adminMessage}
-            onChange={(e) => setAdminMessage(e.target.value)}
-            rows={3}
-            placeholder="Write a message for users..."
-            className={`w-full border rounded p-2 ${
-              darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
-            }`}
-          />
-          <button
-            onClick={onPostMessage}
-            className={`mt-2 ${
-              darkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-600 hover:bg-blue-700'
-            } text-white px-4 py-2 rounded-md hover:bg-blue-700 transition`}
+    <>
+      <div className="space-y-8">
+        {/* Post Message */}
+        <section>
+          <h2 className={`text-xl font-semibold mb-4 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+            Admin Dashboard
+          </h2>
+          <div
+            className={`${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'} p-6 rounded-lg shadow-md`}
           >
-            Post Message
-          </button>
-        </div>
-      </section>
-      <section>
-        <h3 className={`font-medium text-lg mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-          Repair Statistics
-        </h3>
-        <div
-          className={`${
-            darkMode ? 'bg-gray-800' : 'bg-white'
-          } p-6 rounded-lg shadow-md grid grid-cols-2 md:grid-cols-4 gap-4`}
-        >
-          {['Desktop', 'Laptop', 'Printer', 'Internet'].map((type) => (
-            <div key={type} className="text-center">
-              <div
-                className={`text-3xl font-bold ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}
-              >
-                {getTypeCount(type)}
+            <h3 className="font-medium text-lg mb-2">📢 Broadcast Message</h3>
+            <textarea
+              value={adminMessage}
+              onChange={(e) => setAdminMessage(e.target.value)}
+              rows={3}
+              placeholder="Send an important notice to all users..."
+              className={`w-full border rounded p-2 ${
+                darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
+              }`}
+            />
+            <button
+              onClick={onPostMessage}
+              className={`mt-2 ${
+                darkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-600 hover:bg-blue-700'
+              } text-white px-4 py-2 rounded-md transition`}
+            >
+              Send Message
+            </button>
+          </div>
+        </section>
+
+        {/* Statistics */}
+        <section>
+          <h3 className={`font-medium text-lg mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+            Repair Statistics
+          </h3>
+          <div
+            className={`${
+              darkMode ? 'bg-gray-800' : 'bg-white'
+            } p-6 rounded-lg shadow-md grid grid-cols-2 md:grid-cols-4 gap-4`}
+          >
+            {['Desktop', 'Laptop', 'Printer', 'Internet'].map((type) => (
+              <div key={type} className="text-center">
+                <div
+                  className={`text-3xl font-bold ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}
+                >
+                  {getTypeCount(type)}
+                </div>
+                <div className={`${darkMode ? 'text-gray-400' : 'text-gray-600'} text-sm`}>
+                  {type}
+                </div>
               </div>
-              <div className={`${darkMode ? 'text-gray-400' : 'text-gray-600'} text-sm`}>
-                {type}
+            ))}
+          </div>
+        </section>
+
+        {/* Ticket Management Table */}
+        <section>
+          <h3 className={`font-medium text-lg mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+            Ticket Management
+          </h3>
+          <div
+            className={`${
+              darkMode ? 'bg-gray-800' : 'bg-white'
+            } overflow-x-auto rounded-lg shadow-md border`}
+          >
+            <table className="min-w-full">
+              <thead className={darkMode ? 'bg-gray-700' : 'bg-gray-100'}>
+                <tr>
+                  <th className="py-2 px-4 border-b">Ticket #</th>
+                  <th className="py-2 px-4 border-b">Requestee</th>
+                  <th className="py-2 px-4 border-b">Office</th>
+                  <th className="py-2 px-4 border-b">Type</th>
+                  <th className="py-2 px-4 border-b">Problem</th>
+                  <th className="py-2 px-4 border-b">Status</th>
+                  <th className="py-2 px-4 border-b">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tickets.map((ticket) => (
+                  <tr
+                    key={ticket.id}
+                    className={`${
+                      darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'
+                    } transition cursor-pointer`}
+                    onClick={() => openTicketModal(ticket)}
+                  >
+                    <td className="py-2 px-4 border-b text-center text-blue-500 underline font-mono">
+                      #{ticket.ticket_number}
+                    </td>
+                    <td className="py-2 px-4 border-b">{ticket.requestee}</td>
+                    <td className="py-2 px-4 border-b">{ticket.office}</td>
+                    <td className="py-2 px-4 border-b">{ticket.repair_type}</td>
+                    <td className="py-2 px-4 border-b text-sm truncate max-w-xs" title={ticket.problem}>
+                      {ticket.problem}
+                    </td>
+                    <td className="py-2 px-4 border-b">
+                      <span
+                        className={`inline-block px-2 py-1 text-xs rounded-full ${
+                          ticket.status === 'Repaired'
+                            ? 'bg-green-100 text-green-800'
+                            : ticket.status === 'Scheduled'
+                            ? 'bg-blue-100 text-blue-800'
+                            : ticket.status === 'Pending'
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : 'bg-gray-100 text-gray-800'
+                        }`}
+                      >
+                        {ticket.status}
+                      </span>
+                    </td>
+                    <td className="py-2 px-4 border-b text-center">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openTicketModal(ticket);
+                        }}
+                        className="text-blue-500 hover:text-blue-400 text-xs"
+                      >
+                        Open
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+
+      {/* ✅ TICKET DETAIL MODAL - SCROLLABLE */}
+      {selectedTicket && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+          <div
+            className={`${
+              darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'
+            } w-full max-w-lg max-h-[90vh] flex flex-col rounded-xl shadow-2xl overflow-hidden`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="p-6 border-b border-gray-700">
+              <h3 className="text-2xl font-bold text-blue-500">#{selectedTicket.ticket_number}</h3>
+            </div>
+
+            {/* Scrollable Content */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Requestee</label>
+                <input
+                  type="text"
+                  value={selectedTicket.requestee}
+                  onChange={(e) =>
+                    setSelectedTicket({ ...selectedTicket, requestee: e.target.value })
+                  }
+                  className={`w-full border rounded p-2 ${
+                    darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
+                  }`}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Office</label>
+                <input
+                  type="text"
+                  value={selectedTicket.office}
+                  onChange={(e) =>
+                    setSelectedTicket({ ...selectedTicket, office: e.target.value })
+                  }
+                  className={`w-full border rounded p-2 ${
+                    darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
+                  }`}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Repair Type</label>
+                <select
+                  value={selectedTicket.repair_type}
+                  onChange={(e) =>
+                    setSelectedTicket({ ...selectedTicket, repair_type: e.target.value })
+                  }
+                  className={`w-full border rounded p-2 ${
+                    darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
+                  }`}
+                >
+                  <option>Desktop</option>
+                  <option>Laptop</option>
+                  <option>Printer</option>
+                  <option>Internet</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Problem Description</label>
+                <textarea
+                  rows={4}
+                  value={selectedTicket.problem}
+                  onChange={(e) =>
+                    setSelectedTicket({ ...selectedTicket, problem: e.target.value })
+                  }
+                  className={`w-full border rounded p-2 ${
+                    darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
+                  }`}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Status</label>
+                <select
+                  value={selectedTicket.status}
+                  onChange={(e) =>
+                    setSelectedTicket({ ...selectedTicket, status: e.target.value })
+                  }
+                  className={`w-full border rounded p-2 ${
+                    darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
+                  }`}
+                >
+                  <option>Evaluation</option>
+                  <option>Pending</option>
+                  <option>Scheduled</option>
+                  <option>Repaired</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Technician Assigned</label>
+                <input
+                  type="text"
+                  value={selectedTicket.technician || ''}
+                  onChange={(e) =>
+                    setSelectedTicket({ ...selectedTicket, technician: e.target.value })
+                  }
+                  placeholder="Enter technician name"
+                  className={`w-full border rounded p-2 ${
+                    darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
+                  }`}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Scheduled Date</label>
+                <input
+                  type="date"
+                  value={selectedTicket.scheduled_date || ''}
+                  onChange={(e) =>
+                    setSelectedTicket({ ...selectedTicket, scheduled_date: e.target.value })
+                  }
+                  className={`w-full border rounded p-2 ${
+                    darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
+                  }`}
+                />
               </div>
             </div>
-          ))}
+
+            {/* Action Buttons */}
+            <div className="flex flex-col space-y-2 p-6 bg-gray-50 dark:bg-gray-900">
+              <button
+                onClick={saveChanges}
+                className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md transition"
+              >
+                💾 Save Changes
+              </button>
+              <button
+                onClick={() => {
+                  onUpdateTicket({ ...selectedTicket, status: 'Repaired' });
+                  closeModal();
+                }}
+                className="bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-md transition"
+              >
+                ✅ Mark as Repaired
+              </button>
+              <button
+                onClick={() => {
+                  if (window.confirm('Are you sure you want to delete this ticket?')) {
+                    handleDeleteTicket(selectedTicket.id);
+                    closeModal();
+                  }
+                }}
+                className="bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-md transition"
+              >
+                ❌ Delete Ticket
+              </button>
+              <button
+                onClick={closeModal}
+                className={`py-2 px-4 rounded-md ${
+                  darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'
+                }`}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
         </div>
-      </section>
-      <section>
-        <h3 className={`font-medium text-lg mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-          Ticket Management
-        </h3>
-        <div
-          className={`${
-            darkMode ? 'bg-gray-800' : 'bg-white'
-          } overflow-x-auto rounded-lg shadow-md border`}
-        >
-          <table className="min-w-full">
-            <thead className={darkMode ? 'bg-gray-700' : 'bg-gray-100'}>
-              <tr>
-                <th className="py-2 px-4 border-b">Ticket #</th>
-                <th className="py-2 px-4 border-b">Requestee</th>
-                <th className="py-2 px-4 border-b">Office</th>
-                <th className="py-2 px-4 border-b">Type</th>
-                <th className="py-2 px-4 border-b">Problem</th>
-                <th className="py-2 px-4 border-b">Status</th>
-                <th className="py-2 px-4 border-b">Technician</th>
-                <th className="py-2 px-4 border-b">Scheduled Date</th>
-                <th className="py-2 px-4 border-b">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tickets.map((ticket) => (
-                <tr
-                  key={ticket.id}
-                  className={`${
-                    darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'
-                  } transition`}
-                >
-                  <td className="py-2 px-4 border-b text-center">#{ticket.ticket_number}</td>
-                  <td className="py-2 px-4 border-b">{ticket.requestee}</td>
-                  <td className="py-2 px-4 border-b">{ticket.office}</td>
-                  <td className="py-2 px-4 border-b">{ticket.repair_type}</td>
-                  <td className="py-2 px-4 border-b text-sm">{ticket.problem}</td>
-                  <td className="py-2 px-4 border-b">
-                    <select
-                      value={ticket.status}
-                      onChange={(e) =>
-                        onUpdateTicket({
-                          ...ticket,
-                          status: e.target.value,
-                        })
-                      }
-                      className={`border rounded px-2 py-1 text-sm w-full ${
-                        darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
-                      }`}
-                    >
-                      <option>Evaluation</option>
-                      <option>Pending</option>
-                      <option>Scheduled</option>
-                      <option>Repaired</option>
-                    </select>
-                  </td>
-                  <td className="py-2 px-4 border-b">
-                    <input
-                      type="text"
-                      defaultValue={ticket.technician}
-                      onBlur={(e) =>
-                        onUpdateTicket({
-                          ...ticket,
-                          technician: e.target.value,
-                        })
-                      }
-                      className={`border rounded px-2 py-1 text-sm w-full ${
-                        darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
-                      }`}
-                    />
-                  </td>
-                  <td className="py-2 px-4 border-b">
-                    <input
-                      type="date"
-                      defaultValue={ticket.scheduled_date}
-                      onBlur={(e) =>
-                        onUpdateTicket({
-                          ...ticket,
-                          scheduled_date: e.target.value,
-                        })
-                      }
-                      className={`border rounded px-2 py-1 text-sm w-full ${
-                        darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
-                      }`}
-                    />
-                  </td>
-                  <td className="py-2 px-4 border-b text-center">
-                    <div className="flex flex-col gap-1">
-                      <button
-                        onClick={() => onUpdateTicket({ ...ticket, status: 'Repaired' })}
-                        className="text-green-500 hover:text-green-400 text-xs"
-                      >
-                        Complete
-                      </button>
-                      <button
-                        onClick={() => handleDeleteTicket(ticket.id)}
-                        className="text-red-500 hover:text-red-400 text-xs"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-    </div>
+      )}
+    </>
   );
 }
 
@@ -301,7 +446,6 @@ export default function App() {
 
   // Delete ticket
   const handleDeleteTicket = async (ticketId) => {
-    if (!window.confirm('Are you sure you want to delete this ticket?')) return;
     const { error } = await supabase.from('tickets').delete().eq('id', ticketId);
     if (!error) {
       fetchTickets();
@@ -394,18 +538,26 @@ export default function App() {
   }, []);
 
   return (
-    <div className={`min-h-screen ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-900'} transition-colors duration-300`}>
+    <div className={`min-h-screen ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'} transition-colors duration-300`}>
       {/* Header */}
-      <header className={`${darkMode ? 'bg-gray-800' : 'bg-blue-600'} text-white p-4 shadow-md`}>
-        <div className="container mx-auto flex justify-between items-center">
-          <h1 className="text-2xl font-bold">ICT Repair Ticket System</h1>
+      <header className={`${darkMode ? 'bg-gray-800' : 'bg-gradient-to-r from-blue-600 to-blue-700'} text-white p-4 shadow-lg`}>
+        <div className="container mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+          <div className="flex items-center space-x-3">
+            {/* Logo */}
+            <img
+              src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQzP364l67W5zbf2Sm_NbQ4ojteKyj3nIIvMg&s"
+              alt="ICT Logo"
+              className="w-10 h-10 rounded-full object-cover border-2 border-white"
+            />
+            <h1 className="text-2xl font-bold">ICT Repair System</h1>
+          </div>
           <div className="flex items-center space-x-4">
             {view !== 'home' && (
               <button
                 onClick={() => setView('home')}
-                className="bg-white text-blue-600 px-4 py-2 rounded-md font-medium hover:bg-blue-50 transition"
+                className="bg-white text-blue-600 px-4 py-2 rounded-md font-medium hover:bg-blue-50 transition flex items-center gap-2"
               >
-                Back
+                ← Back
               </button>
             )}
             {user && (
@@ -415,14 +567,18 @@ export default function App() {
                   setUser(null);
                   setView('home');
                 }}
-                className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-md"
+                className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-md flex items-center gap-2"
               >
-                Logout
+                🔐 Logout
               </button>
             )}
             <button
               onClick={toggleDarkMode}
-              className="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1 rounded-md"
+              className={`px-4 py-2 rounded-md text-sm font-medium flex items-center gap-2 ${
+                darkMode
+                  ? 'bg-gray-700 hover:bg-gray-600 text-yellow-300'
+                  : 'bg-white/30 backdrop-blur-sm hover:bg-white/50 text-white'
+              }`}
             >
               {darkMode ? '☀️ Light Mode' : '🌙 Dark Mode'}
             </button>
@@ -430,50 +586,74 @@ export default function App() {
         </div>
       </header>
 
-      <main className="container mx-auto p-6 space-y-8">
+      <main className="container mx-auto p-6 space-y-10">
         {/* Admin Message Banner */}
         {adminMessage && (
           <div
             className={`${
-              darkMode ? 'bg-yellow-900 border-l-4 border-yellow-600 text-yellow-200' : 'bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700'
-            } p-4 mb-4 rounded-md`}
+              darkMode
+                ? 'bg-yellow-900/30 border-l-4 border-yellow-600 text-yellow-200'
+                : 'bg-yellow-50 border-l-4 border-yellow-400 text-yellow-800'
+            } p-5 rounded-r-lg shadow-md`}
           >
-            <p className="font-bold">Notice from Admin</p>
+            <p className="font-bold text-lg mb-1">📢 Notice from Admin</p>
             <p>{adminMessage}</p>
           </div>
         )}
 
         {/* Home View */}
         {view === 'home' && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div
-              onClick={() => setView('submit')}
-              className={`${
-                darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:shadow-lg'
-              } p-6 rounded-lg shadow-md text-center cursor-pointer transition`}
-            >
-              <h2 className="text-xl font-bold mb-2">Submit Ticket</h2>
-              <p>Request a repair for ICT equipment</p>
+          <>
+            {/* Hero Section */}
+            <section className="text-center py-10">
+              <h1 className={`text-4xl font-extrabold mb-4 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                Welcome to ICT Support
+              </h1>
+              <p className={`text-xl ${darkMode ? 'text-gray-300' : 'text-gray-600'} max-w-2xl mx-auto`}>
+                Submit repairs, track progress, and stay updated with real-time notifications.
+              </p>
+            </section>
+
+            {/* Main Tiles */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              <div
+                onClick={() => setView('submit')}
+                className={`${
+                  darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:shadow-2xl'
+                } p-8 rounded-2xl shadow-lg text-center cursor-pointer transition-all duration-300 transform hover:-translate-y-1`}
+              >
+                <div className="text-6xl mb-4">🛠️</div>
+                <h2 className="text-2xl font-bold mb-2">Submit Ticket</h2>
+                <p className={darkMode ? 'text-gray-400' : 'text-gray-600'}>
+                  Report an issue with desktop, laptop, printer, or internet.
+                </p>
+              </div>
+              <div
+                onClick={() => setView('track')}
+                className={`${
+                  darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:shadow-2xl'
+                } p-8 rounded-2xl shadow-lg text-center cursor-pointer transition-all duration-300 transform hover:-translate-y-1`}
+              >
+                <div className="text-6xl mb-4">🔍</div>
+                <h2 className="text-2xl font-bold mb-2">Track Ticket</h2>
+                <p className={darkMode ? 'text-gray-400' : 'text-gray-600'}>
+                  Check the current status of your submitted repair request.
+                </p>
+              </div>
+              <div
+                onClick={() => setView('adminLogin')}
+                className={`${
+                  darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:shadow-2xl'
+                } p-8 rounded-2xl shadow-lg text-center cursor-pointer transition-all duration-300 transform hover:-translate-y-1`}
+              >
+                <div className="text-6xl mb-4">🔐</div>
+                <h2 className="text-2xl font-bold mb-2">Admin Login</h2>
+                <p className={darkMode ? 'text-gray-400' : 'text-gray-600'}>
+                  Manage tickets, assign technicians, and send messages.
+                </p>
+              </div>
             </div>
-            <div
-              onClick={() => setView('track')}
-              className={`${
-                darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:shadow-lg'
-              } p-6 rounded-lg shadow-md text-center cursor-pointer transition`}
-            >
-              <h2 className="text-xl font-bold mb-2">Track Ticket</h2>
-              <p>Check the status of your repair request</p>
-            </div>
-            <div
-              onClick={() => setView('adminLogin')}
-              className={`${
-                darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:shadow-lg'
-              } p-6 rounded-lg shadow-md text-center cursor-pointer transition`}
-            >
-              <h2 className="text-xl font-bold mb-2">Admin Login</h2>
-              <p>Manage tickets and technician assignments</p>
-            </div>
-          </div>
+          </>
         )}
 
         {/* Submit Ticket */}
@@ -481,30 +661,34 @@ export default function App() {
           <section
             className={`${
               darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'
-            } p-6 rounded-lg shadow-md max-w-2xl mx-auto`}
+            } p-8 rounded-2xl shadow-xl max-w-2xl mx-auto`}
           >
-            <h2 className="text-xl font-semibold mb-4">Submit a Repair Ticket</h2>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <h2 className="text-2xl font-bold mb-6 text-center">📬 Submit a Repair Request</h2>
+            <form onSubmit={handleSubmit} className="space-y-5">
               <div>
-                <label className="block text-sm font-medium">Office Requesting</label>
+                <label className="block text-sm font-medium mb-1">Office Requesting</label>
                 <input
                   type="text"
                   value={formData.office}
                   onChange={(e) => setFormData({ ...formData, office: e.target.value })}
                   required
-                  className={`${
-                    darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'
-                  } mt-1 block w-full rounded-md border shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200`}
+                  className={`w-full border rounded-lg p-3 ${
+                    darkMode
+                      ? 'bg-gray-700 border-gray-600 text-white'
+                      : 'bg-white border-gray-300 text-gray-900'
+                  } focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium">Type of Repair</label>
+                <label className="block text-sm font-medium mb-1">Type of Repair</label>
                 <select
                   value={formData.repairType}
                   onChange={(e) => setFormData({ ...formData, repairType: e.target.value })}
-                  className={`${
-                    darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'
-                  } mt-1 block w-full rounded-md border shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200`}
+                  className={`w-full border rounded-lg p-3 ${
+                    darkMode
+                      ? 'bg-gray-700 border-gray-600 text-white'
+                      : 'bg-white border-gray-300 text-gray-900'
+                  }`}
                 >
                   <option>Desktop</option>
                   <option>Laptop</option>
@@ -513,55 +697,57 @@ export default function App() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium">Equipment Name</label>
+                <label className="block text-sm font-medium mb-1">Equipment Name</label>
                 <input
                   type="text"
                   value={formData.equipment}
                   onChange={(e) => setFormData({ ...formData, equipment: e.target.value })}
                   required
-                  className={`${
-                    darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'
-                  } mt-1 block w-full rounded-md border shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200`}
+                  className={`w-full border rounded-lg p-3 ${
+                    darkMode
+                      ? 'bg-gray-700 border-gray-600 text-white'
+                      : 'bg-white border-gray-300 text-gray-900'
+                  }`}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium">Problem Description</label>
+                <label className="block text-sm font-medium mb-1">Problem Description</label>
                 <textarea
                   rows={4}
                   value={formData.problem}
                   onChange={(e) => setFormData({ ...formData, problem: e.target.value })}
                   required
-                  className={`${
-                    darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'
-                  } mt-1 block w-full rounded-md border shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200`}
+                  className={`w-full border rounded-lg p-3 ${
+                    darkMode
+                      ? 'bg-gray-700 border-gray-600 text-white'
+                      : 'bg-white border-gray-300 text-gray-900'
+                  }`}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium">Name of Requestee</label>
+                <label className="block text-sm font-medium mb-1">Name of Requestee</label>
                 <input
                   type="text"
                   value={formData.requestee}
                   onChange={(e) => setFormData({ ...formData, requestee: e.target.value })}
                   required
-                  className={`${
-                    darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'
-                  } mt-1 block w-full rounded-md border shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200`}
+                  className={`w-full border rounded-lg p-3 ${
+                    darkMode
+                      ? 'bg-gray-700 border-gray-600 text-white'
+                      : 'bg-white border-gray-300 text-gray-900'
+                  }`}
                 />
               </div>
-              {/* ✅ 4-Digit Verification Code Display & Input */}
-              <div className={`p-4 rounded-md ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                <h3 className="font-medium mb-2">Verification Step</h3>
-                <p className="text-sm mb-2">
-                  Enter the 4-digit code shown below to confirm your submission.
+              {/* Verification Code */}
+              <div className={`p-5 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                <h3 className="font-medium mb-2 flex items-center gap-2">
+                  🔐 Enter Verification Code
+                </h3>
+                <p className="text-sm mb-3 text-gray-500">
+                  Confirm submission by entering the code below.
                 </p>
-                <div className="mb-2">
-                  <span
-                    className={`inline-block px-4 py-2 text-lg font-bold tracking-widest ${
-                      darkMode ? 'bg-gray-600 text-blue-400' : 'bg-white text-blue-600'
-                    } rounded border`}
-                  >
-                    {generatedCode}
-                  </span>
+                <div className="mb-3 text-2xl font-bold tracking-widest bg-white text-blue-600 rounded-lg px-4 py-2 inline-block">
+                  {generatedCode}
                 </div>
                 <input
                   type="text"
@@ -573,18 +759,20 @@ export default function App() {
                   }}
                   required
                   placeholder="Enter code above"
-                  className={`mt-1 block w-full rounded-md border ${
-                    darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'
-                  } focus:border-blue-500 focus:ring focus:ring-blue-200 text-center text-lg`}
+                  className={`w-full border rounded-lg p-3 text-center text-lg ${
+                    darkMode
+                      ? 'bg-gray-700 border-gray-600 text-white'
+                      : 'bg-white border-gray-300 text-gray-900'
+                  }`}
                 />
               </div>
               <button
                 type="submit"
-                className={`${
-                  darkMode ? 'bg-blue-500 hover:bg-blue-600' : 'bg-blue-600 hover:bg-blue-700'
-                } w-full text-white py-2 px-4 rounded-md transition`}
+                className={`w-full ${
+                  darkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-600 hover:bg-blue-700'
+                } text-white py-3 px-6 rounded-lg text-lg font-medium hover:shadow-lg transition`}
               >
-                Submit Ticket
+                🚀 Submit Ticket
               </button>
             </form>
           </section>
@@ -595,15 +783,15 @@ export default function App() {
           <section
             className={`${
               darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'
-            } p-6 rounded-lg shadow-md max-w-2xl mx-auto`}
+            } p-8 rounded-2xl shadow-xl max-w-2xl mx-auto`}
           >
-            <h2 className="text-xl font-semibold mb-4">Track Your Ticket</h2>
-            <div className="space-y-4">
+            <h2 className="text-2xl font-bold mb-6 text-center">🔍 Track Your Ticket</h2>
+            <div className="space-y-5">
               <div>
-                <label className="block text-sm font-medium">Enter Ticket Number</label>
+                <label className="block text-sm font-medium mb-1">Enter Ticket Number</label>
                 <div className="flex mt-1">
                   <span
-                    className={`inline-flex items-center px-3 rounded-l-md border ${
+                    className={`inline-flex items-center px-4 rounded-l-lg border-t border-b border-l ${
                       darkMode ? 'border-gray-600 bg-gray-700 text-gray-300' : 'border-gray-300 bg-gray-50 text-gray-500'
                     }`}
                   >
@@ -614,58 +802,48 @@ export default function App() {
                     value={ticketNumberInput}
                     onChange={(e) => setTicketNumberInput(e.target.value)}
                     placeholder="e.g. 2025072200001"
-                    className={`block w-full rounded-r-md border ${
+                    className={`block w-full rounded-r-lg border-t border-b border-r ${
                       darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'
-                    } focus:border-blue-500 focus:ring focus:ring-blue-200`}
+                    }`}
                   />
                 </div>
               </div>
               <button
                 onClick={handleTrackTicket}
                 className={`${
-                  darkMode ? 'bg-blue-500 hover:bg-blue-600' : 'bg-blue-600 hover:bg-blue-700'
-                } text-white py-2 px-4 rounded-md transition`}
+                  darkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-600 hover:bg-blue-700'
+                } text-white py-3 px-6 rounded-lg w-full transition`}
               >
-                Track Ticket
+                🔍 Find Ticket
               </button>
               {trackingError && (
-                <p className={`${darkMode ? 'text-red-400' : 'text-red-500'} text-sm`}>{trackingError}</p>
+                <p className="text-red-500 text-center">{trackingError}</p>
               )}
               {trackedTicket && (
                 <div
                   className={`${
-                    darkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'
-                  } mt-6 border rounded-md p-4`}
+                    darkMode ? 'bg-gray-700 border-gray-600' : 'bg-blue-50 border-blue-200'
+                  } mt-6 border rounded-xl p-6`}
                 >
-                  <h3 className="font-medium">Ticket #{trackedTicket.ticket_number}</h3>
-                  <p className={`mt-2 text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                    <span className="font-medium">Requestee:</span> {trackedTicket.requestee}
-                  </p>
-                  <p className={`mt-1 text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                    <span className="font-medium">Office:</span> {trackedTicket.office}
-                  </p>
-                  <p className={`mt-1 text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                    <span className="font-medium">Issue:</span> {trackedTicket.problem}
-                  </p>
-                  <p className={`mt-1 text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                    <span className="font-medium">Status:</span>{' '}
-                    <span
-                      className={`inline-block px-2 py-1 text-xs rounded-full ${
-                        trackedTicket.status === 'Repaired'
-                          ? 'bg-green-100 text-green-800'
-                          : trackedTicket.status === 'Scheduled'
-                          ? 'bg-blue-100 text-blue-800'
-                          : trackedTicket.status === 'Pending'
-                          ? 'bg-yellow-100 text-yellow-800'
-                          : 'bg-gray-100 text-gray-800'
-                      }`}
-                    >
-                      {trackedTicket.status}
-                    </span>
-                  </p>
-                  <p className={`mt-1 text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                    <span className="font-medium">Technician:</span> {trackedTicket.technician}
-                  </p>
+                  <h3 className="text-xl font-bold text-blue-600">#{trackedTicket.ticket_number}</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                    <p><span className="font-medium">Requestee:</span> {trackedTicket.requestee}</p>
+                    <p><span className="font-medium">Office:</span> {trackedTicket.office}</p>
+                    <p><span className="font-medium">Issue:</span> {trackedTicket.problem}</p>
+                    <p><span className="font-medium">Status:</span> 
+                      <span className={`ml-2 px-2 py-1 rounded-full text-xs ${
+                        trackedTicket.status === 'Repaired' ? 'bg-green-100 text-green-800' :
+                        trackedTicket.status === 'Scheduled' ? 'bg-blue-100 text-blue-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>{trackedTicket.status}</span>
+                    </p>
+                    <p><span className="font-medium">👨‍🔧 Technician:</span> {trackedTicket.technician || 'Not assigned yet'}</p>
+                    <p><span className="font-medium">📅 Scheduled Date:</span> 
+                      {trackedTicket.scheduled_date
+                        ? new Date(trackedTicket.scheduled_date).toLocaleDateString()
+                        : 'Not scheduled yet'}
+                    </p>
+                  </div>
                 </div>
               )}
             </div>
@@ -677,46 +855,44 @@ export default function App() {
           <section
             className={`${
               darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'
-            } p-6 rounded-lg shadow-md max-w-md mx-auto`}
+            } p-8 rounded-2xl shadow-xl max-w-md mx-auto`}
           >
-            <h2 className="text-xl font-semibold mb-4">Admin Login</h2>
-            <div className="mb-4 text-center">
-              <p className="text-sm">Enter the 4-digit code below to continue:</p>
-              <div
-                className={`mt-2 text-lg font-bold text-center ${
-                  darkMode ? 'text-blue-400' : 'text-blue-600'
-                }`}
-              >
-                {generatedCode}
-              </div>
+            <h2 className="text-2xl font-bold mb-6 text-center">🔐 Admin Login</h2>
+            <div className="mb-5 text-center">
+              <p className="text-sm text-gray-500">Enter the 4-digit code below:</p>
+              <div className="text-3xl font-bold text-blue-500 mt-2">{generatedCode}</div>
             </div>
-            <form onSubmit={handleAdminLogin} className="space-y-4">
+            <form onSubmit={handleAdminLogin} className="space-y-5">
               <div>
-                <label className="block text-sm font-medium">Email</label>
+                <label className="block text-sm font-medium mb-1">Email</label>
                 <input
                   type="email"
                   value={loginData.email}
                   onChange={(e) => setLoginData({ ...loginData, email: e.target.value })}
                   required
-                  className={`${
-                    darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'
-                  } mt-1 block w-full rounded-md border shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200`}
+                  className={`w-full border rounded-lg p-3 ${
+                    darkMode
+                      ? 'bg-gray-700 border-gray-600 text-white'
+                      : 'bg-white border-gray-300 text-gray-900'
+                  }`}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium">Password</label>
+                <label className="block text-sm font-medium mb-1">Password</label>
                 <input
                   type="password"
                   value={loginData.password}
                   onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
                   required
-                  className={`${
-                    darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'
-                  } mt-1 block w-full rounded-md border shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200`}
+                  className={`w-full border rounded-lg p-3 ${
+                    darkMode
+                      ? 'bg-gray-700 border-gray-600 text-white'
+                      : 'bg-white border-gray-300 text-gray-900'
+                  }`}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium">Enter 4-digit Code</label>
+                <label className="block text-sm font-medium mb-1">Enter 4-digit Code</label>
                 <input
                   type="text"
                   maxLength={4}
@@ -727,18 +903,18 @@ export default function App() {
                   }}
                   required
                   placeholder="1234"
-                  className={`${
-                    darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'
-                  } mt-1 block w-full rounded-md border shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 text-center text-lg tracking-widest`}
+                  className={`w-full border rounded-lg p-3 text-center text-lg ${
+                    darkMode
+                      ? 'bg-gray-700 border-gray-600 text-white'
+                      : 'bg-white border-gray-300 text-gray-900'
+                  }`}
                 />
               </div>
               <button
                 type="submit"
-                className={`${
-                  darkMode ? 'bg-blue-500 hover:bg-blue-600' : 'bg-blue-600 hover:bg-blue-700'
-                } w-full text-white py-2 px-4 rounded-md transition`}
+                className={`w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-6 rounded-lg transition`}
               >
-                Login
+                🔓 Log In
               </button>
             </form>
           </section>
@@ -759,20 +935,26 @@ export default function App() {
         )}
       </main>
 
-      {/* ✅ MODAL: Ticket Submission Success + Redirect Agreement */}
+      {/* ✅ MODAL: Ticket Submission Success */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
           <div
             className={`${
               darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'
-            } p-6 rounded-lg shadow-lg max-w-sm w-full`}
+            } p-8 rounded-2xl shadow-2xl max-w-sm w-full transform transition-all animate-fade-in`}
           >
-            <h3 className="text-xl font-bold mb-4">Ticket Submitted Successfully!</h3>
-            <p className="mb-4">
-              Your ticket number is: <span className="font-bold text-blue-400">{newTicketNumber}</span>
-            </p>
-            <p className="mb-4">Please keep this number for future reference.</p>
-            <div className="flex items-start mb-4">
+            <div className="text-center">
+              <div className="text-6xl mb-4">🎉</div>
+              <h3 className="text-2xl font-bold mb-3">Success!</h3>
+              <p className="mb-2">
+                Your ticket number is:
+              </p>
+              <p className="font-mono text-lg text-blue-500 font-bold">{newTicketNumber}</p>
+              <p className="text-sm text-gray-500 mt-4">
+                Keep this number for future reference.
+              </p>
+            </div>
+            <div className="flex items-start mt-6 mb-4">
               <input
                 type="checkbox"
                 id="agreeRedirect"
@@ -783,36 +965,34 @@ export default function App() {
               <label htmlFor="agreeRedirect" className="ml-2 text-sm">
                 I agree to upload my report file in the next website{' '}
                 <a
-                  href="https://docs.google.com/forms/d/e/1FAIpQLSeS_9axdB3it0MbZ1LrZnKfdVrro7p2x9ZqBslcj6W_h2UAMw/viewform "
+                  href=" https://docs.google.com/forms/d/e/1FAIpQLSeS_9axdB3it0MbZ1LrZnKfdVrro7p2x9ZqBslcj6W_h2UAMw/viewform "
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-blue-500 underline"
                 >
-                  (click to preview)
+                  (preview)
                 </a>
               </label>
             </div>
             <button
               onClick={() => {
                 if (!agreedToRedirect) {
-                  alert('You must agree to proceed.');
+                  alert('Please agree to proceed.');
                   return;
                 }
                 setShowModal(false);
                 setView('home');
                 window.location.href =
-                  'https://docs.google.com/forms/d/e/1FAIpQLSeS_9axdB3it0MbZ1LrZnKfdVrro7p2x9ZqBslcj6W_h2UAMw/viewform?usp=sharing&ouid=109247182578013546765';
+                  'https://docs.google.com/forms/d/e/1FAIpQLSeS_9axdB3it0MbZ1LrZnKfdVrro7p2x9ZqBslcj6W_h2UAMw/viewform ';
               }}
               disabled={!agreedToRedirect}
-              className={`${
+              className={`w-full py-3 px-6 rounded-lg font-medium transition ${
                 agreedToRedirect
-                  ? darkMode
-                    ? 'bg-blue-600 hover:bg-blue-700'
-                    : 'bg-blue-600 hover:bg-blue-700'
-                  : 'bg-gray-400 cursor-not-allowed'
-              } w-full text-white py-2 px-4 rounded-md transition`}
+                  ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+              }`}
             >
-              Continue to Report Upload
+              Continue →
             </button>
           </div>
         </div>
@@ -840,12 +1020,10 @@ export default function App() {
             &copy; {new Date().getFullYear()} ICT Repair Ticket System
           </p>
           <a
-            href=" https://www.mediafire.com/file/g0e2ww83ty05nhc/ICT_Repair_Ticket_System_1_1.0.apk/file "
+            href="https://www.mediafire.com/file/g0e2ww83ty05nhc/ICT_Repair_Ticket_System_1_1.0.apk/file "
             target="_blank"
             rel="noopener noreferrer"
-            className={`inline-block bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-medium transition ${
-              darkMode ? 'shadow-lg shadow-green-900/30' : ''
-            }`}
+            className={`inline-block bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-medium transition shadow-lg hover:shadow-green-900/30`}
           >
             📲 Download Mobile App
           </a>
