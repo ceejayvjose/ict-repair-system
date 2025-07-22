@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from './supabaseClient';
 
-// Move AdminPanel before usage to avoid JSX parsing errors
 function AdminPanel({
   tickets,
   onUpdateTicket,
@@ -158,22 +157,26 @@ function AdminPanel({
         </section>
       </div>
 
-      {/* ✅ TICKET DETAIL MODAL - SCROLLABLE */}
+      {/* SCROLLABLE TICKET DETAIL MODAL */}
       {selectedTicket && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+        <div
+          className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4"
+          onClick={closeModal}
+        >
           <div
             className={`${
               darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'
             } w-full max-w-lg max-h-[90vh] flex flex-col rounded-xl shadow-2xl overflow-hidden`}
             onClick={(e) => e.stopPropagation()}
+            tabIndex="0"
           >
             {/* Header */}
-            <div className="p-6 border-b border-gray-700">
+            <div className="p-6 border-b border-gray-700 bg-gray-800/50">
               <h3 className="text-2xl font-bold text-blue-500">#{selectedTicket.ticket_number}</h3>
             </div>
 
             {/* Scrollable Content */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+            <div className="flex-1 overflow-y-auto p-6 space-y-4" style={{ maxHeight: 'calc(90vh - 180px)' }}>
               <div>
                 <label className="block text-sm font-medium mb-1">Requestee</label>
                 <input
@@ -185,6 +188,7 @@ function AdminPanel({
                   className={`w-full border rounded p-2 ${
                     darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
                   }`}
+                  autoFocus
                 />
               </div>
               <div>
@@ -277,7 +281,7 @@ function AdminPanel({
             </div>
 
             {/* Action Buttons */}
-            <div className="flex flex-col space-y-2 p-6 bg-gray-50 dark:bg-gray-900">
+            <div className="flex flex-col space-y-2 p-6 bg-gray-50 dark:bg-gray-900 border-t border-gray-700">
               <button
                 onClick={saveChanges}
                 className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md transition"
