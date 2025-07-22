@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from './supabaseClient';
 
-// Move AdminPanel before usage to avoid JSX parsing errors
+// Move AdminPanel before usage to fix JSX parsing
 function AdminPanel({
   tickets,
   onUpdateTicket,
@@ -11,7 +11,6 @@ function AdminPanel({
   getTypeCount,
   handleDeleteTicket,
   darkMode,
-  setAsNowServing,
 }) {
   return (
     <div className="space-y-8">
@@ -153,12 +152,6 @@ function AdminPanel({
                   <td className="py-2 px-4 border-b text-center">
                     <div className="flex flex-col gap-1">
                       <button
-                        onClick={() => setAsNowServing(ticket)}
-                        className="text-blue-500 hover:text-blue-400 text-xs"
-                      >
-                        Set as Now Serving
-                      </button>
-                      <button
                         onClick={() => onUpdateTicket({ ...ticket, status: 'Repaired' })}
                         className="text-green-500 hover:text-green-400 text-xs"
                       >
@@ -215,9 +208,6 @@ export default function App() {
     return savedMode === 'true';
   });
 
-  // NEW: Queue - Now Serving
-  const [nowServing, setNowServing] = useState(null);
-
   // Clock state
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -253,70 +243,6 @@ export default function App() {
     if (error) console.error(error);
     else setAdminMessage(data[0]?.message || '');
   };
-
-  // Fetch currently serving ticket
-  const fetchCurrentTicket = async () => {
-    const { data, error } = await supabase
-      .from('current_ticket')
-      .select('ticket_id')
-      .order('created_at', { ascending: false })
-      .limit(1);
-
-    if (error) {
-      console.error('Error fetching current ticket:', error);
-      return;
-    }
-
-    if (data && data.length > 0 && data[0].ticket_id) {
-      const ticket = tickets.find(t => t.id === data[0].ticket_id);
-      setNowServing(ticket || null);
-    } else {
-      setNowServing(null);
-    }
-  };
-
-  // Set now serving (save to Supabase)
-  const setAsNowServing = async (ticket) => {
-    if (!user) {
-      alert('Only admins can set the current ticket.');
-      return;
-    }
-
-    const { error } = await supabase.from('current_ticket').insert([
-      { ticket_id: ticket.id }
-    ]);
-
-    if (!error) {
-      setNowServing(ticket);
-    } else {
-      alert('Failed to update: ' + error.message);
-    }
-  };
-
-  // Listen for real-time updates
-  useEffect(() => {
-    const channel = supabase
-      .channel('current-ticket-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'current_ticket'
-        },
-        () => {
-          fetchCurrentTicket(); // Refresh when change detected
-        }
-      )
-      .subscribe();
-
-    // Initial fetch
-    fetchCurrentTicket();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [tickets]);
 
   // Submit ticket
   const handleSubmit = async (e) => {
@@ -519,56 +445,35 @@ export default function App() {
 
         {/* Home View */}
         {view === 'home' && (
-          <>
-            {/* Queue: Now Serving */}
-            <section
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div
+              onClick={() => setView('submit')}
               className={`${
-                darkMode ? 'bg-blue-900 text-white' : 'bg-blue-50 text-gray-800'
-              } p-6 rounded-lg shadow-md max-w-2xl mx-auto`}
+                darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:shadow-lg'
+              } p-6 rounded-lg shadow-md text-center cursor-pointer transition`}
             >
-              <h2 className="text-xl font-bold mb-4">🛠️ Technician Queue</h2>
-              {nowServing ? (
-                <div className="space-y-2">
-                  <p><span className="font-medium">Now Serving:</span> #{nowServing.ticket_number}</p>
-                  <p><span className="font-medium">Requestee:</span> {nowServing.requestee}</p>
-                  <p><span className="font-medium">Issue:</span> {nowServing.problem}</p>
-                </div>
-              ) : (
-                <p>No ticket currently being served.</p>
-              )}
-            </section>
-
-            {/* Main Tiles */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div
-                onClick={() => setView('submit')}
-                className={`${
-                  darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:shadow-lg'
-                } p-6 rounded-lg shadow-md text-center cursor-pointer transition`}
-              >
-                <h2 className="text-xl font-bold mb-2">Submit Ticket</h2>
-                <p>Request a repair for ICT equipment</p>
-              </div>
-              <div
-                onClick={() => setView('track')}
-                className={`${
-                  darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:shadow-lg'
-                } p-6 rounded-lg shadow-md text-center cursor-pointer transition`}
-              >
-                <h2 className="text-xl font-bold mb-2">Track Ticket</h2>
-                <p>Check the status of your repair request</p>
-              </div>
-              <div
-                onClick={() => setView('adminLogin')}
-                className={`${
-                  darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:shadow-lg'
-                } p-6 rounded-lg shadow-md text-center cursor-pointer transition`}
-              >
-                <h2 className="text-xl font-bold mb-2">Admin Login</h2>
-                <p>Manage tickets and technician assignments</p>
-              </div>
+              <h2 className="text-xl font-bold mb-2">Submit Ticket</h2>
+              <p>Request a repair for ICT equipment</p>
             </div>
-          </>
+            <div
+              onClick={() => setView('track')}
+              className={`${
+                darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:shadow-lg'
+              } p-6 rounded-lg shadow-md text-center cursor-pointer transition`}
+            >
+              <h2 className="text-xl font-bold mb-2">Track Ticket</h2>
+              <p>Check the status of your repair request</p>
+            </div>
+            <div
+              onClick={() => setView('adminLogin')}
+              className={`${
+                darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:shadow-lg'
+              } p-6 rounded-lg shadow-md text-center cursor-pointer transition`}
+            >
+              <h2 className="text-xl font-bold mb-2">Admin Login</h2>
+              <p>Manage tickets and technician assignments</p>
+            </div>
+          </div>
         )}
 
         {/* Submit Ticket */}
@@ -850,7 +755,6 @@ export default function App() {
             getTypeCount={(type) => tickets.filter((t) => t.repair_type === type).length}
             handleDeleteTicket={handleDeleteTicket}
             darkMode={darkMode}
-            setAsNowServing={setAsNowServing}
           />
         )}
       </main>
