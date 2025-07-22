@@ -34,8 +34,11 @@ export default function App() {
     return savedMode === 'true';
   });
 
-  // NEW: Admin popup visibility
-  const [showAdminPopup, setShowAdminPopup] = useState(false);
+  // NEW: Queue - Now Serving
+  const [nowServing, setNowServing] = useState(null);
+
+  // Clock state
+  const [currentTime, setCurrentTime] = useState(new Date());
 
   // Generate 4-digit verification code when entering submit page
   useEffect(() => {
@@ -79,12 +82,18 @@ export default function App() {
   // Submit ticket
   const handleSubmit = async (e) => {
     e.preventDefault();
-
     // Validate entered code
     if (!enteredVerificationCode || enteredVerificationCode !== generatedCode) {
       alert('Please enter the correct 4-digit verification code.');
       return;
     }
+
+    // Generate ticket number: YYYYMMDD + sequential
+    const today = new Date();
+    const datePrefix = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}`;
+    const existingTodayTickets = tickets.filter(t => t.ticket_number.startsWith(datePrefix));
+    const nextNum = String(existingTodayTickets.length + 1).padStart(5, '0'); // 00001 format
+    const fullTicketNumber = datePrefix + nextNum;
 
     const newTicket = {
       office: formData.office,
@@ -93,17 +102,15 @@ export default function App() {
       problem: formData.problem,
       requestee: formData.requestee,
       status: 'Evaluation',
+      ticket_number: fullTicketNumber,
     };
-    const { data, error } = await supabase
-      .from('tickets')
-      .insert([newTicket])
-      .select('id, ticket_number');
+    const { error } = await supabase.from('tickets').insert([newTicket]);
     if (error) {
       console.error('Supabase Insert Error:', error);
       alert(`Failed to submit ticket: ${error.message}`);
       return;
     }
-    fetchTickets();
+    fetchTickets(); // Refresh tickets
     setFormData({
       office: '',
       repairType: 'Desktop',
@@ -111,9 +118,9 @@ export default function App() {
       problem: '',
       requestee: '',
     });
-    setNewTicketNumber(data[0].ticket_number);
+    setNewTicketNumber(fullTicketNumber);
     setEnteredVerificationCode('');
-    setShowModal(true); // Show success modal
+    setShowModal(true);
   };
 
   // Update ticket
@@ -214,6 +221,27 @@ export default function App() {
     localStorage.setItem('darkMode', newMode);
   };
 
+  // Clock effect
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Set now serving
+  const setAsNowServing = (ticket) => {
+    setNowServing(ticket);
+  };
+
+  // Clear now serving
+  const clearNowServing = () => {
+    setNowServing(null);
+  };
+
+  // NEW: Admin popup visibility
+  const [showAdminPopup, setShowAdminPopup] = useState(false);
+
   return (
     <div className={`min-h-screen ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-900'} transition-colors duration-300`}>
       {/* Header */}
@@ -252,37 +280,76 @@ export default function App() {
       </header>
 
       <main className="container mx-auto p-6 space-y-8">
+        {/* Admin Message Banner */}
+        {adminMessage && (
+          <div
+            className={`${
+              darkMode ? 'bg-yellow-900 border-l-4 border-yellow-600 text-yellow-200' : 'bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700'
+            } p-4 mb-4 rounded-md`}
+          >
+            <p className="font-bold">Notice from Admin</p>
+            <p>{adminMessage}</p>
+          </div>
+        )}
+
         {/* Home View */}
         {view === 'home' && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div
-              onClick={() => setView('submit')}
+          <>
+            {/* Queue: Now Serving */}
+            <section
               className={`${
-                darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:shadow-lg'
-              } p-6 rounded-lg shadow-md text-center cursor-pointer transition`}
+                darkMode ? 'bg-blue-900 text-white' : 'bg-blue-50 text-gray-800'
+              } p-6 rounded-lg shadow-md max-w-2xl mx-auto`}
             >
-              <h2 className="text-xl font-bold mb-2">Submit Ticket</h2>
-              <p>Request a repair for ICT equipment</p>
+              <h2 className="text-xl font-bold mb-4">🛠️ Technician Queue</h2>
+              {nowServing ? (
+                <div className="space-y-2">
+                  <p><span className="font-medium">Now Serving:</span> #{nowServing.ticket_number}</p>
+                  <p><span className="font-medium">Requestee:</span> {nowServing.requestee}</p>
+                  <p><span className="font-medium">Issue:</span> {nowServing.problem}</p>
+                  <button
+                    onClick={clearNowServing}
+                    className="mt-2 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded"
+                  >
+                    Clear
+                  </button>
+                </div>
+              ) : (
+                <p>No ticket currently being served.</p>
+              )}
+            </section>
+
+            {/* Main Tiles */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div
+                onClick={() => setView('submit')}
+                className={`${
+                  darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:shadow-lg'
+                } p-6 rounded-lg shadow-md text-center cursor-pointer transition`}
+              >
+                <h2 className="text-xl font-bold mb-2">Submit Ticket</h2>
+                <p>Request a repair for ICT equipment</p>
+              </div>
+              <div
+                onClick={() => setView('track')}
+                className={`${
+                  darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:shadow-lg'
+                } p-6 rounded-lg shadow-md text-center cursor-pointer transition`}
+              >
+                <h2 className="text-xl font-bold mb-2">Track Ticket</h2>
+                <p>Check the status of your repair request</p>
+              </div>
+              <div
+                onClick={() => setView('adminLogin')}
+                className={`${
+                  darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:shadow-lg'
+                } p-6 rounded-lg shadow-md text-center cursor-pointer transition`}
+              >
+                <h2 className="text-xl font-bold mb-2">Admin Login</h2>
+                <p>Manage tickets and technician assignments</p>
+              </div>
             </div>
-            <div
-              onClick={() => setView('track')}
-              className={`${
-                darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:shadow-lg'
-              } p-6 rounded-lg shadow-md text-center cursor-pointer transition`}
-            >
-              <h2 className="text-xl font-bold mb-2">Track Ticket</h2>
-              <p>Check the status of your repair request</p>
-            </div>
-            <div
-              onClick={() => setView('adminLogin')}
-              className={`${
-                darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:shadow-lg'
-              } p-6 rounded-lg shadow-md text-center cursor-pointer transition`}
-            >
-              <h2 className="text-xl font-bold mb-2">Admin Login</h2>
-              <p>Manage tickets and technician assignments</p>
-            </div>
-          </div>
+          </>
         )}
 
         {/* Submit Ticket */}
@@ -357,7 +424,6 @@ export default function App() {
                   } mt-1 block w-full rounded-md border shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200`}
                 />
               </div>
-
               {/* ✅ 4-Digit Verification Code Display & Input */}
               <div className={`p-4 rounded-md ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
                 <h3 className="font-medium mb-2">Verification Step</h3>
@@ -388,7 +454,6 @@ export default function App() {
                   } focus:border-blue-500 focus:ring focus:ring-blue-200 text-center text-lg`}
                 />
               </div>
-
               <button
                 type="submit"
                 className={`${
@@ -424,7 +489,7 @@ export default function App() {
                     type="text"
                     value={ticketNumberInput}
                     onChange={(e) => setTicketNumberInput(e.target.value)}
-                    placeholder="e.g. 00001"
+                    placeholder="e.g. 2025072200001"
                     className={`block w-full rounded-r-md border ${
                       darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'
                     } focus:border-blue-500 focus:ring focus:ring-blue-200`}
@@ -566,6 +631,8 @@ export default function App() {
             getTypeCount={(type) => tickets.filter((t) => t.repair_type === type).length}
             handleDeleteTicket={handleDeleteTicket}
             darkMode={darkMode}
+            nowServing={nowServing}
+            setAsNowServing={setAsNowServing}
           />
         )}
       </main>
@@ -605,8 +672,6 @@ export default function App() {
               Your ticket number is: <span className="font-bold text-blue-400">{newTicketNumber}</span>
             </p>
             <p className="mb-4">Please keep this number for future reference.</p>
-
-            {/* Checkbox for agreement */}
             <div className="flex items-start mb-4">
               <input
                 type="checkbox"
@@ -627,7 +692,6 @@ export default function App() {
                 </a>
               </label>
             </div>
-
             <button
               onClick={() => {
                 if (!agreedToRedirect) {
@@ -654,13 +718,37 @@ export default function App() {
         </div>
       )}
 
+      {/* ✅ Clock */}
+      <div
+        className={`text-center py-4 ${
+          darkMode ? 'text-blue-400' : 'text-blue-600'
+        } border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}
+      >
+        <p className="text-lg font-mono">
+          🕒 {currentTime.toLocaleTimeString()}
+        </p>
+      </div>
+
+      {/* Footer */}
       <footer
         className={`${
           darkMode ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-600'
-        } py-4 mt-10`}
+        } py-6`}
       >
-        <div className="container mx-auto text-center text-sm">
-          &copy; {new Date().getFullYear()} ICT Repair Ticket System
+        <div className="container mx-auto text-center space-y-4">
+          <p className="text-sm">
+            &copy; {new Date().getFullYear()} ICT Repair Ticket System
+          </p>
+          <a
+            href=" https://www.mediafire.com/file/g0e2ww83ty05nhc/ICT_Repair_Ticket_System_1_1.0.apk/file "
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`inline-block bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-medium transition ${
+              darkMode ? 'shadow-lg shadow-green-900/30' : ''
+            }`}
+          >
+            📲 Download Mobile App
+          </a>
         </div>
       </footer>
     </div>
@@ -677,6 +765,8 @@ function AdminPanel({
   getTypeCount,
   handleDeleteTicket,
   darkMode,
+  nowServing,
+  setAsNowServing,
 }) {
   return (
     <div className="space-y-8">
@@ -748,6 +838,7 @@ function AdminPanel({
                 <th className="py-2 px-4 border-b">Requestee</th>
                 <th className="py-2 px-4 border-b">Office</th>
                 <th className="py-2 px-4 border-b">Type</th>
+                <th className="py-2 px-4 border-b">Problem</th>
                 <th className="py-2 px-4 border-b">Status</th>
                 <th className="py-2 px-4 border-b">Technician</th>
                 <th className="py-2 px-4 border-b">Scheduled Date</th>
@@ -766,6 +857,7 @@ function AdminPanel({
                   <td className="py-2 px-4 border-b">{ticket.requestee}</td>
                   <td className="py-2 px-4 border-b">{ticket.office}</td>
                   <td className="py-2 px-4 border-b">{ticket.repair_type}</td>
+                  <td className="py-2 px-4 border-b text-sm">{ticket.problem}</td>
                   <td className="py-2 px-4 border-b">
                     <select
                       value={ticket.status}
@@ -816,16 +908,22 @@ function AdminPanel({
                     />
                   </td>
                   <td className="py-2 px-4 border-b text-center">
-                    <div className="flex items-center justify-center gap-3">
+                    <div className="flex flex-col gap-1">
+                      <button
+                        onClick={() => setAsNowServing(ticket)}
+                        className="text-blue-500 hover:text-blue-400 text-xs"
+                      >
+                        Now Serving
+                      </button>
                       <button
                         onClick={() => onUpdateTicket({ ...ticket, status: 'Repaired' })}
-                        className={`text-green-500 hover:text-green-400`}
+                        className="text-green-500 hover:text-green-400 text-xs"
                       >
                         Complete
                       </button>
                       <button
                         onClick={() => handleDeleteTicket(ticket.id)}
-                        className={`text-red-500 hover:text-red-400`}
+                        className="text-red-500 hover:text-red-400 text-xs"
                       >
                         Delete
                       </button>
