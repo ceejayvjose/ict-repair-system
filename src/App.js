@@ -1,6 +1,182 @@
 import { useEffect, useState } from 'react';
 import { supabase } from './supabaseClient';
 
+// Move AdminPanel before usage to fix JSX parsing
+function AdminPanel({
+  tickets,
+  onUpdateTicket,
+  onPostMessage,
+  adminMessage,
+  setAdminMessage,
+  getTypeCount,
+  handleDeleteTicket,
+  darkMode,
+}) {
+  return (
+    <div className="space-y-8">
+      <section>
+        <h2 className={`text-xl font-semibold mb-4 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+          Admin Dashboard
+        </h2>
+        <div
+          className={`${
+            darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'
+          } p-6 rounded-lg shadow-md`}
+        >
+          <h3 className="font-medium text-lg mb-2">Post a Message to Users</h3>
+          <textarea
+            value={adminMessage}
+            onChange={(e) => setAdminMessage(e.target.value)}
+            rows={3}
+            placeholder="Write a message for users..."
+            className={`w-full border rounded p-2 ${
+              darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
+            }`}
+          />
+          <button
+            onClick={onPostMessage}
+            className={`mt-2 ${
+              darkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-600 hover:bg-blue-700'
+            } text-white px-4 py-2 rounded-md hover:bg-blue-700 transition`}
+          >
+            Post Message
+          </button>
+        </div>
+      </section>
+      <section>
+        <h3 className={`font-medium text-lg mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+          Repair Statistics
+        </h3>
+        <div
+          className={`${
+            darkMode ? 'bg-gray-800' : 'bg-white'
+          } p-6 rounded-lg shadow-md grid grid-cols-2 md:grid-cols-4 gap-4`}
+        >
+          {['Desktop', 'Laptop', 'Printer', 'Internet'].map((type) => (
+            <div key={type} className="text-center">
+              <div
+                className={`text-3xl font-bold ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}
+              >
+                {getTypeCount(type)}
+              </div>
+              <div className={`${darkMode ? 'text-gray-400' : 'text-gray-600'} text-sm`}>
+                {type}
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+      <section>
+        <h3 className={`font-medium text-lg mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+          Ticket Management
+        </h3>
+        <div
+          className={`${
+            darkMode ? 'bg-gray-800' : 'bg-white'
+          } overflow-x-auto rounded-lg shadow-md border`}
+        >
+          <table className="min-w-full">
+            <thead className={darkMode ? 'bg-gray-700' : 'bg-gray-100'}>
+              <tr>
+                <th className="py-2 px-4 border-b">Ticket #</th>
+                <th className="py-2 px-4 border-b">Requestee</th>
+                <th className="py-2 px-4 border-b">Office</th>
+                <th className="py-2 px-4 border-b">Type</th>
+                <th className="py-2 px-4 border-b">Problem</th>
+                <th className="py-2 px-4 border-b">Status</th>
+                <th className="py-2 px-4 border-b">Technician</th>
+                <th className="py-2 px-4 border-b">Scheduled Date</th>
+                <th className="py-2 px-4 border-b">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {tickets.map((ticket) => (
+                <tr
+                  key={ticket.id}
+                  className={`${
+                    darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'
+                  } transition`}
+                >
+                  <td className="py-2 px-4 border-b text-center">#{ticket.ticket_number}</td>
+                  <td className="py-2 px-4 border-b">{ticket.requestee}</td>
+                  <td className="py-2 px-4 border-b">{ticket.office}</td>
+                  <td className="py-2 px-4 border-b">{ticket.repair_type}</td>
+                  <td className="py-2 px-4 border-b text-sm">{ticket.problem}</td>
+                  <td className="py-2 px-4 border-b">
+                    <select
+                      value={ticket.status}
+                      onChange={(e) =>
+                        onUpdateTicket({
+                          ...ticket,
+                          status: e.target.value,
+                        })
+                      }
+                      className={`border rounded px-2 py-1 text-sm w-full ${
+                        darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
+                      }`}
+                    >
+                      <option>Evaluation</option>
+                      <option>Pending</option>
+                      <option>Scheduled</option>
+                      <option>Repaired</option>
+                    </select>
+                  </td>
+                  <td className="py-2 px-4 border-b">
+                    <input
+                      type="text"
+                      defaultValue={ticket.technician}
+                      onBlur={(e) =>
+                        onUpdateTicket({
+                          ...ticket,
+                          technician: e.target.value,
+                        })
+                      }
+                      className={`border rounded px-2 py-1 text-sm w-full ${
+                        darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
+                      }`}
+                    />
+                  </td>
+                  <td className="py-2 px-4 border-b">
+                    <input
+                      type="date"
+                      defaultValue={ticket.scheduled_date}
+                      onBlur={(e) =>
+                        onUpdateTicket({
+                          ...ticket,
+                          scheduled_date: e.target.value,
+                        })
+                      }
+                      className={`border rounded px-2 py-1 text-sm w-full ${
+                        darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
+                      }`}
+                    />
+                  </td>
+                  <td className="py-2 px-4 border-b text-center">
+                    <div className="flex items-center justify-center gap-3">
+                      <button
+                        onClick={() => onUpdateTicket({ ...ticket, status: 'Repaired' })}
+                        className="text-green-500 hover:text-green-400 text-xs"
+                      >
+                        Complete
+                      </button>
+                      <button
+                        onClick={() => handleDeleteTicket(ticket.id)}
+                        className="text-red-500 hover:text-red-400 text-xs"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 export default function App() {
   const [view, setView] = useState('home');
   const [user, setUser] = useState(null);
@@ -34,11 +210,11 @@ export default function App() {
     return savedMode === 'true';
   });
 
-  // NEW: Now serving from DB
-  const [nowServing, setNowServing] = useState(null);
-
   // Clock state
   const [currentTime, setCurrentTime] = useState(new Date());
+
+  // NEW: Queue - Now Serving
+  const [nowServing, setNowServing] = useState(null);
 
   // Generate 4-digit verification code when entering submit page
   useEffect(() => {
@@ -70,13 +246,7 @@ export default function App() {
       .order('created_at', { ascending: false })
       .limit(1);
     if (error) console.error(error);
-    else {
-      const msg = data[0]?.message || '';
-      setAdminMessage(msg);
-      if (msg && view === 'home') {
-        setShowAdminPopup(true);
-      }
-    }
+    else setAdminMessage(data[0]?.message || '');
   };
 
   // Submit ticket
@@ -171,7 +341,6 @@ export default function App() {
     ]);
     if (!error) {
       alert('Message posted to users!');
-      setShowAdminPopup(true);
     }
   };
 
@@ -229,81 +398,10 @@ export default function App() {
     return () => clearInterval(timer);
   }, []);
 
-  // Fetch currently serving ticket
-  const fetchCurrentTicket = async () => {
-    const { data, error } = await supabase
-      .from('current_ticket')
-      .select('ticket_id')
-      .order('created_at', { ascending: false })
-      .limit(1);
-
-    if (error) {
-      console.error('Error fetching current ticket:', error);
-      return;
-    }
-
-    if (data && data.length > 0 && data[0].ticket_id) {
-      const ticket = tickets.find(t => t.id === data[0].ticket_id);
-      setNowServing(ticket || null);
-    } else {
-      setNowServing(null);
-    }
+  // Set now serving
+  const setAsNowServing = (ticket) => {
+    setNowServing(ticket);
   };
-
-  // Set now serving (save to Supabase)
-  const setAsNowServing = async (ticket) => {
-    if (!user) {
-      alert('Only admins can set the current ticket.');
-      return;
-    }
-
-    const { error } = await supabase.from('current_ticket').insert([
-      { ticket_id: ticket.id }
-    ]);
-
-    if (error) {
-      alert('Failed to update current ticket: ' + error.message);
-    } else {
-      setNowServing(ticket);
-    }
-  };
-
-  // Clear now serving
-  const clearNowServing = async () => {
-    if (!user) return;
-    const { error } = await supabase.from('current_ticket').delete().neq('id', 0);
-    if (!error) {
-      setNowServing(null);
-    }
-  };
-
-  // Listen for real-time updates
-  useEffect(() => {
-    const channel = supabase
-      .channel('current-ticket-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'current_ticket'
-        },
-        () => {
-          fetchCurrentTicket(); // Refresh when change detected
-        }
-      )
-      .subscribe();
-
-    // Initial fetch
-    fetchCurrentTicket();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [tickets]);
-
-  // NEW: Admin popup visibility
-  const [showAdminPopup, setShowAdminPopup] = useState(false);
 
   return (
     <div className={`min-h-screen ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-900'} transition-colors duration-300`}>
@@ -688,33 +786,9 @@ export default function App() {
             getTypeCount={(type) => tickets.filter((t) => t.repair_type === type).length}
             handleDeleteTicket={handleDeleteTicket}
             darkMode={darkMode}
-            nowServing={nowServing}
-            setAsNowServing={setAsNowServing}
           />
         )}
       </main>
-
-      {/* ✅ POPUP: Admin Message Popup */}
-      {showAdminPopup && adminMessage && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div
-            className={`${
-              darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'
-            } p-6 rounded-lg shadow-lg max-w-md w-full`}
-          >
-            <h3 className="text-xl font-bold mb-4 text-yellow-500">Notice from Admin</h3>
-            <p className="mb-6">{adminMessage}</p>
-            <button
-              onClick={() => setShowAdminPopup(false)}
-              className={`${
-                darkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-600 hover:bg-blue-700'
-              } w-full text-white py-2 px-4 rounded-md transition`}
-            >
-              I Understand
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* ✅ MODAL: Ticket Submission Success + Redirect Agreement */}
       {showModal && (
@@ -808,190 +882,6 @@ export default function App() {
           </a>
         </div>
       </footer>
-    </div>
-  );
-}
-
-// AdminPanel Component
-function AdminPanel({
-  tickets,
-  onUpdateTicket,
-  onPostMessage,
-  adminMessage,
-  setAdminMessage,
-  getTypeCount,
-  handleDeleteTicket,
-  darkMode,
-  nowServing,
-  setAsNowServing,
-}) {
-  return (
-    <div className="space-y-8">
-      <section>
-        <h2 className={`text-xl font-semibold mb-4 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-          Admin Dashboard
-        </h2>
-        <div
-          className={`${
-            darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'
-          } p-6 rounded-lg shadow-md`}
-        >
-          <h3 className="font-medium text-lg mb-2">Post a Message to Users</h3>
-          <textarea
-            value={adminMessage}
-            onChange={(e) => setAdminMessage(e.target.value)}
-            rows={3}
-            placeholder="Write a message for users..."
-            className={`w-full border rounded p-2 ${
-              darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
-            }`}
-          />
-          <button
-            onClick={onPostMessage}
-            className={`mt-2 ${
-              darkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-600 hover:bg-blue-700'
-            } text-white px-4 py-2 rounded-md hover:bg-blue-700 transition`}
-          >
-            Post Message
-          </button>
-        </div>
-      </section>
-      <section>
-        <h3 className={`font-medium text-lg mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-          Repair Statistics
-        </h3>
-        <div
-          className={`${
-            darkMode ? 'bg-gray-800' : 'bg-white'
-          } p-6 rounded-lg shadow-md grid grid-cols-2 md:grid-cols-4 gap-4`}
-        >
-          {['Desktop', 'Laptop', 'Printer', 'Internet'].map((type) => (
-            <div key={type} className="text-center">
-              <div
-                className={`text-3xl font-bold ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}
-              >
-                {getTypeCount(type)}
-              </div>
-              <div className={`${darkMode ? 'text-gray-400' : 'text-gray-600'} text-sm`}>
-                {type}
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-      <section>
-        <h3 className={`font-medium text-lg mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-          Ticket Management
-        </h3>
-        <div
-          className={`${
-            darkMode ? 'bg-gray-800' : 'bg-white'
-          } overflow-x-auto rounded-lg shadow-md border`}
-        >
-          <table className="min-w-full">
-            <thead className={darkMode ? 'bg-gray-700' : 'bg-gray-100'}>
-              <tr>
-                <th className="py-2 px-4 border-b">Ticket #</th>
-                <th className="py-2 px-4 border-b">Requestee</th>
-                <th className="py-2 px-4 border-b">Office</th>
-                <th className="py-2 px-4 border-b">Type</th>
-                <th className="py-2 px-4 border-b">Problem</th>
-                <th className="py-2 px-4 border-b">Status</th>
-                <th className="py-2 px-4 border-b">Technician</th>
-                <th className="py-2 px-4 border-b">Scheduled Date</th>
-                <th className="py-2 px-4 border-b">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tickets.map((ticket) => (
-                <tr
-                  key={ticket.id}
-                  className={`${
-                    darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'
-                  } transition`}
-                >
-                  <td className="py-2 px-4 border-b text-center">#{ticket.ticket_number}</td>
-                  <td className="py-2 px-4 border-b">{ticket.requestee}</td>
-                  <td className="py-2 px-4 border-b">{ticket.office}</td>
-                  <td className="py-2 px-4 border-b">{ticket.repair_type}</td>
-                  <td className="py-2 px-4 border-b text-sm">{ticket.problem}</td>
-                  <td className="py-2 px-4 border-b">
-                    <select
-                      value={ticket.status}
-                      onChange={(e) =>
-                        onUpdateTicket({
-                          ...ticket,
-                          status: e.target.value,
-                        })
-                      }
-                      className={`border rounded px-2 py-1 text-sm w-full ${
-                        darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
-                      }`}
-                    >
-                      <option>Evaluation</option>
-                      <option>Pending</option>
-                      <option>Scheduled</option>
-                      <option>Repaired</option>
-                    </select>
-                  </td>
-                  <td className="py-2 px-4 border-b">
-                    <input
-                      type="text"
-                      defaultValue={ticket.technician}
-                      onBlur={(e) =>
-                        onUpdateTicket({
-                          ...ticket,
-                          technician: e.target.value,
-                        })
-                      }
-                      className={`border rounded px-2 py-1 text-sm w-full ${
-                        darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
-                      }`}
-                    />
-                  </td>
-                  <td className="py-2 px-4 border-b">
-                    <input
-                      type="date"
-                      defaultValue={ticket.scheduled_date}
-                      onBlur={(e) =>
-                        onUpdateTicket({
-                          ...ticket,
-                          scheduled_date: e.target.value,
-                        })
-                      }
-                      className={`border rounded px-2 py-1 text-sm w-full ${
-                        darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
-                      }`}
-                    />
-                  </td>
-                  <td className="py-2 px-4 border-b text-center">
-                    <div className="flex flex-col gap-1">
-                      <button
-                        onClick={() => setAsNowServing(ticket)}
-                        className="text-blue-500 hover:text-blue-400 text-xs"
-                      >
-                        Now Serving
-                      </button>
-                      <button
-                        onClick={() => onUpdateTicket({ ...ticket, status: 'Repaired' })}
-                        className="text-green-500 hover:text-green-400 text-xs"
-                      >
-                        Complete
-                      </button>
-                      <button
-                        onClick={() => handleDeleteTicket(ticket.id)}
-                        className="text-red-500 hover:text-red-400 text-xs"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
     </div>
   );
 }
