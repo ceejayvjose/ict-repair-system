@@ -30,10 +30,78 @@ const tutorialSteps = [
   },
   {
     title: "Step 5: Status Updates",
-    content: "Your ticket status will change from 'Evaluation' to 'Scheduled' and finally 'Repaired' as we work on your request. You can also see which technician is assigned to your repair.",
+    content: "Your ticket status will change from 'Evaluation' to 'Scheduled' and finally 'Repaired' as we work on your request.",
     icon: "🔄"
   }
 ];
+
+// Toast component for non-intrusive notifications
+function Toast({ message, type, onClose }) {
+  const types = {
+    success: 'bg-green-500',
+    error: 'bg-red-500',
+    info: 'bg-blue-500',
+    warning: 'bg-yellow-500'
+  };
+
+  return (
+    <div className={`fixed top-4 right-4 z-50 flex items-center p-4 rounded-lg shadow-lg text-white ${types[type]} transition-all duration-300 transform translate-x-0 opacity-100`}>
+      <span className="mr-2">
+        {type === 'success' && '✅'}
+        {type === 'error' && '❌'}
+        {type === 'info' && 'ℹ️'}
+        {type === 'warning' && '⚠️'}
+      </span>
+      {message}
+      <button 
+        onClick={onClose}
+        className="ml-4 text-white hover:text-gray-200"
+        aria-label="Close notification"
+      >
+        ×
+      </button>
+    </div>
+  );
+}
+
+// Loading spinner component
+function LoadingSpinner() {
+  return (
+    <div className="flex justify-center items-center p-4">
+      <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+    </div>
+  );
+}
+
+// Status Badge component with icons
+function StatusBadge({ status }) {
+  const statusConfig = {
+    'Evaluation': { color: 'bg-gray-100 text-gray-800', icon: '🔍' },
+    'Pending': { color: 'bg-yellow-100 text-yellow-800', icon: '⏳' },
+    'Scheduled': { color: 'bg-blue-100 text-blue-800', icon: '📅' },
+    'Repaired': { color: 'bg-green-100 text-green-800', icon: '✅' }
+  };
+
+  const config = statusConfig[status] || statusConfig['Evaluation'];
+
+  return (
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${config.color}`}>
+      <span className="mr-1">{config.icon}</span>
+      {status}
+    </span>
+  );
+}
+
+// Priority Indicator component
+function PriorityIndicator({ priority }) {
+  if (priority !== 'RUSH') return null;
+  
+  return (
+    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold text-white bg-red-500 animate-pulse">
+      ⚡ RUSH
+    </span>
+  );
+}
 
 // Move AdminPanel before usage
 function AdminPanel({
@@ -166,6 +234,37 @@ function AdminPanel({
     const statusOrder = { 'Evaluation': 0, 'Pending': 1, 'Scheduled': 2, 'Repaired': 3 };
     return statusOrder[a.status] - statusOrder[b.status];
   });
+
+  // Export to Excel
+  const exportToExcel = () => {
+    // Create CSV content (Excel can read CSV)
+    const headers = ['Ticket #', 'Requestee', 'Office', 'Type', 'Problem', 'Status', 'Technician', 'Scheduled Date', 'Submitted'];
+    const csvContent = [
+      headers.join(','),
+      ...sortedTickets.map(ticket => [
+        ticket.ticket_number,
+        ticket.requestee,
+        ticket.office,
+        ticket.repair_type,
+        `"${ticket.problem.replace(/"/g, '""')}"`,
+        ticket.status,
+        ticket.technician || '',
+        ticket.scheduled_date || '',
+        new Date(ticket.created_at).toLocaleString()
+      ].join(','))
+    ].join('\n');
+
+    // Create and download file
+    const blob = new Blob([csvContent], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `tickets-export-${new Date().toISOString().split('T')[0]}.xls`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   return (
     <>
@@ -339,6 +438,12 @@ function AdminPanel({
             >
               🖨️ Print All
             </button>
+            <button
+              onClick={exportToExcel}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm flex items-center gap-2 no-print ml-2"
+            >
+              📥 Export Excel
+            </button>
           </div>
 
           {/* Ticket Cards Grid */}
@@ -353,8 +458,15 @@ function AdminPanel({
               sortedTickets.map((ticket) => (
                 <div
                   key={ticket.id}
-                  className={`${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-lg border overflow-hidden transition-all duration-300 hover:shadow-xl hover:scale-105 cursor-pointer`}
+                  className={`${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-lg border overflow-hidden transition-all duration-300 hover:shadow-xl hover:scale-105 cursor-pointer transform hover:-translate-y-1`}
                   onClick={() => openTicketModal(ticket)}
+                  role="button"
+                  tabIndex="0"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      openTicketModal(ticket);
+                    }
+                  }}
                 >
                   {/* Card Header */}
                   <div className={`px-6 py-4 ${
@@ -368,18 +480,8 @@ function AdminPanel({
                         <p className="text-white/80 text-sm">{ticket.repair_type}</p>
                       </div>
                       <div className="text-right">
-                        <span className={`px-3 py-1 rounded-full text-xs font-bold text-white ${
-                          ticket.status === 'Repaired' ? 'bg-green-500' :
-                          ticket.status === 'Scheduled' ? 'bg-blue-500' :
-                          ticket.status === 'Pending' ? 'bg-yellow-500' : 'bg-gray-500'
-                        }`}>
-                          {ticket.status}
-                        </span>
-                        {ticket.priority === 'RUSH' && (
-                          <span className="mt-1 inline-block px-2 py-1 rounded-full text-xs font-bold text-white bg-red-500">
-                            RUSH
-                          </span>
-                        )}
+                        <StatusBadge status={ticket.status} />
+                        <PriorityIndicator priority={ticket.priority} />
                       </div>
                     </div>
                   </div>
@@ -431,6 +533,7 @@ function AdminPanel({
                           openChat(ticket);
                         }}
                         className="text-green-500 hover:text-green-600 flex items-center gap-1"
+                        aria-label="Open chat"
                       >
                         💬 Chat
                       </button>
@@ -537,6 +640,7 @@ function AdminPanel({
                           printWindow.print();
                         }}
                         className="text-blue-500 hover:text-blue-600 flex items-center gap-1 no-print"
+                        aria-label="Print ticket"
                       >
                         🖨️ Print
                       </button>
@@ -583,6 +687,9 @@ function AdminPanel({
         <div
           className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4"
           onClick={closeModal}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="ticket-modal-title"
         >
           <div
             className={`${
@@ -590,25 +697,16 @@ function AdminPanel({
             } w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl shadow-2xl overflow-hidden`}
             onClick={(e) => e.stopPropagation()}
             tabIndex="0"
+            role="document"
           >
             {/* Header */}
             <div className="p-6 border-b border-gray-700 bg-gradient-to-r from-blue-600 to-blue-700">
               <div className="flex justify-between items-start">
                 <div>
-                  <h3 className="text-3xl font-bold text-white mb-1">#{selectedTicket.ticket_number}</h3>
+                  <h3 id="ticket-modal-title" className="text-3xl font-bold text-white mb-1">#{selectedTicket.ticket_number}</h3>
                   <div className="flex items-center gap-2">
-                    <span className={`px-3 py-1 rounded-full text-sm font-bold text-white ${
-                      selectedTicket.status === 'Repaired' ? 'bg-green-500' :
-                      selectedTicket.status === 'Scheduled' ? 'bg-blue-500' :
-                      selectedTicket.status === 'Pending' ? 'bg-yellow-500' : 'bg-gray-500'
-                    }`}>
-                      {selectedTicket.status}
-                    </span>
-                    {selectedTicket.priority === 'RUSH' && (
-                      <span className="px-3 py-1 rounded-full text-sm font-bold text-white bg-red-500">
-                        RUSH
-                      </span>
-                    )}
+                    <StatusBadge status={selectedTicket.status} />
+                    <PriorityIndicator priority={selectedTicket.priority} />
                     <span className={`text-sm ${darkMode ? 'text-blue-300' : 'text-blue-600'}`}>
                       {selectedTicket.repair_type}
                     </span>
@@ -945,6 +1043,10 @@ export default function App() {
     const savedMode = localStorage.getItem('darkMode');
     return savedMode === 'true';
   });
+  // Toast notifications
+  const [toast, setToast] = useState(null);
+  // Loading state
+  const [loading, setLoading] = useState(false);
 
   // Chat state
   const [showUserChat, setShowUserChat] = useState(false);
@@ -970,13 +1072,18 @@ export default function App() {
 
   // Fetch tickets
   const fetchTickets = async () => {
+    setLoading(true);
     const { data, error } = await supabase
       .from('tickets')
       .select('*')
       .order('created_at', { ascending: false });
+    setLoading(false);
     if (error) {
       console.error('Error fetching tickets:', error);
-      alert('Failed to load tickets: ' + error.message);
+      setToast({
+        message: `Failed to load tickets: ${error.message}`,
+        type: 'error'
+      });
       return;
     }
     setTickets(data || []);
@@ -989,8 +1096,15 @@ export default function App() {
       .select('message')
       .order('created_at', { ascending: false })
       .limit(1);
-    if (error) console.error(error);
-    else setAdminMessage(data[0]?.message || '');
+    if (error) {
+      console.error('Error fetching admin message:', error);
+      setToast({
+        message: `Failed to load admin message: ${error.message}`,
+        type: 'error'
+      });
+    } else {
+      setAdminMessage(data[0]?.message || '');
+    }
   };
 
   // Submit ticket
@@ -998,16 +1112,31 @@ export default function App() {
     e.preventDefault();
     // Validate entered code
     if (!enteredVerificationCode || enteredVerificationCode !== generatedCode) {
-      alert('Please enter the correct 4-digit verification code.');
+      setToast({
+        message: 'Please enter the correct 4-digit verification code.',
+        type: 'error'
+      });
       return;
     }
 
     // Generate ticket number: YYYYMMDD + sequential
     const today = new Date();
     const datePrefix = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}`;
-    const existingTodayTickets = tickets.filter(t => t.ticket_number.startsWith(datePrefix));
-    const nextNum = String(existingTodayTickets.length + 1).padStart(5, '0'); // 00001 format
-    const fullTicketNumber = datePrefix + nextNum;
+    
+    // Filter today's tickets and sort by ticket_number to get the highest sequence number
+    const todayTickets = tickets
+      .filter(t => t.ticket_number.startsWith(datePrefix))
+      .sort((a, b) => b.ticket_number.localeCompare(a.ticket_number));
+    
+    let nextNum = 1;
+    if (todayTickets.length > 0) {
+      // Extract the sequence number from the highest ticket number
+      const lastTicketNumber = todayTickets[0].ticket_number;
+      const lastSequence = parseInt(lastTicketNumber.substring(8), 10);
+      nextNum = lastSequence + 1;
+    }
+    
+    const fullTicketNumber = datePrefix + String(nextNum).padStart(5, '0');
 
     const newTicket = {
       office: formData.office,
@@ -1019,12 +1148,20 @@ export default function App() {
       ticket_number: fullTicketNumber,
       priority: formData.priority
     };
+    
+    setLoading(true);
     const { error } = await supabase.from('tickets').insert([newTicket]);
+    setLoading(false);
+    
     if (error) {
       console.error('Supabase Insert Error:', error);
-      alert(`Failed to submit ticket: ${error.message}`);
+      setToast({
+        message: `Failed to submit ticket: ${error.message}`,
+        type: 'error'
+      });
       return;
     }
+    
     fetchTickets(); // Refresh tickets
     setFormData({
       office: '',
@@ -1037,26 +1174,55 @@ export default function App() {
     setNewTicketNumber(fullTicketNumber);
     setEnteredVerificationCode('');
     setShowModal(true);
+    
+    setToast({
+      message: 'Ticket submitted successfully!',
+      type: 'success'
+    });
   };
 
   // Update ticket
   const handleUpdateTicket = async (updatedTicket) => {
+    setLoading(true);
     const { error } = await supabase
       .from('tickets')
       .update(updatedTicket)
       .eq('id', updatedTicket.id);
+    setLoading(false);
+    
     if (!error) {
       fetchTickets();
+      setToast({
+        message: 'Ticket updated successfully!',
+        type: 'success'
+      });
+    } else {
+      setToast({
+        message: `Failed to update ticket: ${error.message}`,
+        type: 'error'
+      });
     }
   };
 
   // Delete ticket
   const handleDeleteTicket = async (ticketId) => {
+    if (!window.confirm('Are you sure you want to delete this ticket?')) return;
+    
+    setLoading(true);
     const { error } = await supabase.from('tickets').delete().eq('id', ticketId);
+    setLoading(false);
+    
     if (!error) {
       fetchTickets();
+      setToast({
+        message: 'Ticket deleted successfully!',
+        type: 'success'
+      });
     } else {
-      alert('Failed to delete ticket: ' + error.message);
+      setToast({
+        message: `Failed to delete ticket: ${error.message}`,
+        type: 'error'
+      });
     }
   };
 
@@ -1068,7 +1234,11 @@ export default function App() {
       setTrackedTicket(null);
       return;
     }
+    
+    setLoading(true);
     const found = tickets.find((t) => t.ticket_number === input);
+    setLoading(false);
+    
     if (found) {
       setTrackedTicket(found);
       setTrackingError('');
@@ -1125,6 +1295,10 @@ export default function App() {
 
     if (error) {
       console.error('Error sending message:', error);
+      setToast({
+        message: `Failed to send message: ${error.message}`,
+        type: 'error'
+      });
     } else {
       setNewUserMessage('');
       // Refresh messages
@@ -1184,12 +1358,23 @@ export default function App() {
 
   // Post message
   const handlePostMessage = async () => {
+    setLoading(true);
     await supabase.from('admin_messages').delete().neq('id', 0);
     const { error } = await supabase.from('admin_messages').insert([
       { message: adminMessage },
     ]);
+    setLoading(false);
+    
     if (!error) {
-      alert('Message posted to users!');
+      setToast({
+        message: 'Message posted to users!',
+        type: 'success'
+      });
+    } else {
+      setToast({
+        message: `Failed to post message: ${error.message}`,
+        type: 'error'
+      });
     }
   };
 
@@ -1198,16 +1383,31 @@ export default function App() {
     e.preventDefault();
     const { email, password, code } = loginData;
     if (code !== generatedCode) {
-      alert('Invalid code. Please enter the correct 4-digit code.');
+      setToast({
+        message: 'Invalid code. Please enter the correct 4-digit code.',
+        type: 'error'
+      });
       return;
     }
+    
+    setLoading(true);
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    setLoading(false);
+    
     if (error) {
-      alert('Login failed: ' + error.message);
+      setToast({
+        message: `Login failed: ${error.message}`,
+        type: 'error'
+      });
       return;
     }
     setUser(data.user);
     setView('admin');
+    
+    setToast({
+      message: 'Logged in successfully!',
+      type: 'success'
+    });
   };
 
   // Generate admin login code
@@ -1306,6 +1506,7 @@ export default function App() {
               <button
                 onClick={() => setView('home')}
                 className="bg-white text-blue-600 px-4 py-2 rounded-md font-medium hover:bg-blue-50 transition flex items-center gap-2"
+                aria-label="Back to home"
               >
                 ← Back
               </button>
@@ -1316,8 +1517,13 @@ export default function App() {
                   await supabase.auth.signOut();
                   setUser(null);
                   setView('home');
+                  setToast({
+                    message: 'Logged out successfully!',
+                    type: 'info'
+                  });
                 }}
                 className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-md flex items-center gap-2"
+                aria-label="Logout"
               >
                 🔐 Logout
               </button>
@@ -1325,6 +1531,7 @@ export default function App() {
             <button
               onClick={() => setShowTutorial(true)}
               className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-md flex items-center gap-2"
+              aria-label="Open tutorial"
             >
               📚 Tutorial
             </button>
@@ -1335,6 +1542,7 @@ export default function App() {
                   ? 'bg-gray-700 hover:bg-gray-600 text-yellow-300'
                   : 'bg-white/30 backdrop-blur-sm hover:bg-white/50 text-white'
               }`}
+              aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
             >
               {darkMode ? '☀️ Light Mode' : '🌙 Dark Mode'}
             </button>
@@ -1430,6 +1638,25 @@ export default function App() {
           </div>
         )}
 
+        {/* Toast Notifications */}
+        {toast && (
+          <Toast 
+            message={toast.message} 
+            type={toast.type} 
+            onClose={() => setToast(null)} 
+          />
+        )}
+
+        {/* Loading Overlay */}
+        {loading && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl">
+              <LoadingSpinner />
+              <p className="mt-2 text-gray-600 dark:text-gray-300">Processing your request...</p>
+            </div>
+          </div>
+        )}
+
         {/* Home View */}
         {view === 'home' && (
           <>
@@ -1450,6 +1677,13 @@ export default function App() {
                 className={`${
                   darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:shadow-2xl'
                 } p-8 rounded-2xl shadow-lg text-center cursor-pointer transition-all duration-300 transform hover:-translate-y-1`}
+                role="button"
+                tabIndex="0"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    setView('submit');
+                  }
+                }}
               >
                 <div className="text-6xl mb-4">🛠️</div>
                 <h2 className="text-2xl font-bold mb-2">Submit Ticket</h2>
@@ -1462,6 +1696,13 @@ export default function App() {
                 className={`${
                   darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:shadow-2xl'
                 } p-8 rounded-2xl shadow-lg text-center cursor-pointer transition-all duration-300 transform hover:-translate-y-1`}
+                role="button"
+                tabIndex="0"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    setView('track');
+                  }
+                }}
               >
                 <div className="text-6xl mb-4">🔍</div>
                 <h2 className="text-2xl font-bold mb-2">Track Ticket</h2>
@@ -1474,6 +1715,13 @@ export default function App() {
                 className={`${
                   darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:shadow-2xl'
                 } p-8 rounded-2xl shadow-lg text-center cursor-pointer transition-all duration-300 transform hover:-translate-y-1`}
+                role="button"
+                tabIndex="0"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    setView('adminLogin');
+                  }
+                }}
               >
                 <div className="text-6xl mb-4">🔐</div>
                 <h2 className="text-2xl font-bold mb-2">Admin Login</h2>
@@ -1624,7 +1872,7 @@ export default function App() {
                   }}
                   required
                   placeholder="Enter code above"
-                  className={`w-full border rounded-lg p-3 text-center text-xl ${
+                  className={`w-full border rounded-lg p-3 text-center text-lg ${
                     darkMode
                       ? 'bg-gray-700 border-gray-600 text-white'
                       : 'bg-white border-gray-300 text-gray-900'
@@ -1634,11 +1882,19 @@ export default function App() {
 
               <button
                 type="submit"
+                disabled={loading}
                 className={`w-full ${
                   darkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-600 hover:bg-blue-700'
                 } text-white py-4 px-6 rounded-lg text-lg font-medium hover:shadow-lg transition flex items-center justify-center gap-2`}
               >
-                🚀 Submit Ticket
+                {loading ? (
+                  <>
+                    <LoadingSpinner />
+                    Processing...
+                  </>
+                ) : (
+                  '🚀 Submit Ticket'
+                )}
               </button>
             </form>
           </section>
@@ -1676,11 +1932,19 @@ export default function App() {
               </div>
               <button
                 onClick={handleTrackTicket}
+                disabled={loading}
                 className={`${
                   darkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-600 hover:bg-blue-700'
-                } text-white py-3 px-6 rounded-lg w-full transition`}
+                } text-white py-3 px-6 rounded-lg w-full transition flex items-center justify-center gap-2`}
               >
-                🔍 Find Ticket
+                {loading ? (
+                  <>
+                    <LoadingSpinner />
+                    Finding...
+                  </>
+                ) : (
+                  '🔍 Find Ticket'
+                )}
               </button>
               {trackingError && (
                 <p className="text-red-500 text-center">{trackingError}</p>
@@ -1696,24 +1960,14 @@ export default function App() {
                     <p><span className="font-medium">Requestee:</span> {trackedTicket.requestee}</p>
                     <p><span className="font-medium">Office:</span> {trackedTicket.office}</p>
                     <p><span className="font-medium">Issue:</span> {trackedTicket.problem}</p>
-                    <p><span className="font-medium">Status:</span> 
-                      <span className={`ml-2 px-2 py-1 rounded-full text-xs ${
-                        trackedTicket.status === 'Repaired' ? 'bg-green-100 text-green-800' :
-                        trackedTicket.status === 'Scheduled' ? 'bg-blue-100 text-blue-800' :
-                        'bg-gray-100 text-gray-800'
-                      }`}>{trackedTicket.status}</span>
-                    </p>
+                    <p><span className="font-medium">Status:</span> <StatusBadge status={trackedTicket.status} /></p>
                     <p><span className="font-medium">👨‍🔧 Technician:</span> {trackedTicket.technician || 'Not assigned yet'}</p>
                     <p><span className="font-medium">📅 Scheduled Date:</span> 
                       {trackedTicket.scheduled_date
                         ? new Date(trackedTicket.scheduled_date).toLocaleDateString()
                         : 'Not scheduled yet'}
                     </p>
-                    <p><span className="font-medium">⚡ Priority:</span> 
-                      <span className={`ml-2 px-2 py-1 rounded-full text-xs ${
-                        trackedTicket.priority === 'RUSH' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'
-                      }`}>{trackedTicket.priority}</span>
-                    </p>
+                    <p><span className="font-medium">⚡ Priority:</span> <PriorityIndicator priority={trackedTicket.priority} /></p>
                   </div>
                   
                   {/* Chat Button */}
@@ -1793,9 +2047,17 @@ export default function App() {
               </div>
               <button
                 type="submit"
-                className={`w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-6 rounded-lg transition`}
+                disabled={loading}
+                className={`w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-6 rounded-lg transition flex items-center justify-center gap-2`}
               >
-                🔓 Log In
+                {loading ? (
+                  <>
+                    <LoadingSpinner />
+                    Logging in...
+                  </>
+                ) : (
+                  '🔓 Log In'
+                )}
               </button>
             </form>
           </section>
@@ -1835,7 +2097,7 @@ export default function App() {
                 Keep this number for future reference.
               </p>
             </div>
-            <div className="flex items-start mt-6 mb-4">
+            <div className="flex items-start mb-4">
               <input
                 type="checkbox"
                 id="agreeRedirect"
@@ -1858,22 +2120,33 @@ export default function App() {
             <button
               onClick={() => {
                 if (!agreedToRedirect) {
-                  alert('Please agree to proceed.');
+                  setToast({
+                    message: 'Please agree to proceed.',
+                    type: 'warning'
+                  });
                   return;
                 }
                 setShowModal(false);
                 setView('home');
-                window.location.href =
-                  'https://docs.google.com/forms/d/e/1FAIpQLSeS_9axdB3it0MbZ1LrZnKfdVrro7p2x9ZqBslcj6W_h2UAMw/viewform';
+                setToast({
+                  message: 'Redirecting to Google Form...',
+                  type: 'info'
+                });
+                setTimeout(() => {
+                  window.location.href =
+                    'https://docs.google.com/forms/d/e/1FAIpQLSeS_9axdB3it0MbZ1LrZnKfdVrro7p2x9ZqBslcj6W_h2UAMw/viewform';
+                }, 1500);
               }}
               disabled={!agreedToRedirect}
-              className={`w-full py-3 px-6 rounded-lg font-medium transition ${
+              className={`${
                 agreedToRedirect
-                  ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-              }`}
+                  ? darkMode
+                    ? 'bg-blue-600 hover:bg-blue-700'
+                    : 'bg-blue-600 hover:bg-blue-700'
+                  : 'bg-gray-400 cursor-not-allowed'
+              } w-full text-white py-2 px-4 rounded-md transition`}
             >
-              Continue →
+              Continue to Report Upload
             </button>
           </div>
         </div>
