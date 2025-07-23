@@ -51,6 +51,8 @@ function AdminPanel({
   const [chatMessages, setChatMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [showChat, setShowChat] = useState(false);
+  const [filterStatus, setFilterStatus] = useState('All');
+  const [searchTerm, setSearchTerm] = useState('');
   const messagesEndRef = useRef(null);
   const chatChannelRef = useRef(null);
 
@@ -150,6 +152,21 @@ function AdminPanel({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages]);
 
+  // Filter tickets
+  const filteredTickets = tickets.filter(ticket => {
+    const matchesStatus = filterStatus === 'All' || ticket.status === filterStatus;
+    const matchesSearch = ticket.ticket_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         ticket.requestee.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         ticket.office.toLowerCase().includes(searchTerm.toLowerCase());
+    return matchesStatus && matchesSearch;
+  });
+
+  // Sort tickets by status priority
+  const sortedTickets = [...filteredTickets].sort((a, b) => {
+    const statusOrder = { 'Evaluation': 0, 'Pending': 1, 'Scheduled': 2, 'Repaired': 3 };
+    return statusOrder[a.status] - statusOrder[b.status];
+  });
+
   return (
     <>
       <div className="space-y-8">
@@ -159,7 +176,7 @@ function AdminPanel({
             Admin Dashboard
           </h2>
           <div
-            className={`${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'} p-6 rounded-lg shadow-md`}
+            className={`${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'} p-6 rounded-2xl shadow-xl`}
           >
             <h3 className="font-medium text-lg mb-2">📢 Broadcast Message</h3>
             <textarea
@@ -167,15 +184,15 @@ function AdminPanel({
               onChange={(e) => setAdminMessage(e.target.value)}
               rows={3}
               placeholder="Send an important notice to all users..."
-              className={`w-full border rounded p-2 ${
+              className={`w-full border rounded-lg p-3 ${
                 darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
               }`}
             />
             <button
               onClick={onPostMessage}
-              className={`mt-2 ${
+              className={`mt-3 ${
                 darkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-600 hover:bg-blue-700'
-              } text-white px-4 py-2 rounded-md transition`}
+              } text-white px-6 py-2 rounded-lg transition`}
             >
               Send Message
             </button>
@@ -184,22 +201,22 @@ function AdminPanel({
 
         {/* Statistics */}
         <section>
-          <h3 className={`font-medium text-lg mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+          <h3 className={`font-medium text-lg mb-4 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
             Repair Statistics
           </h3>
           <div
             className={`${
               darkMode ? 'bg-gray-800' : 'bg-white'
-            } p-6 rounded-lg shadow-md grid grid-cols-2 md:grid-cols-4 gap-4`}
+            } p-6 rounded-2xl shadow-xl grid grid-cols-2 md:grid-cols-4 gap-4`}
           >
             {['Desktop', 'Laptop', 'Printer', 'Internet'].map((type) => (
-              <div key={type} className="text-center">
+              <div key={type} className="text-center p-4 rounded-xl bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30">
                 <div
                   className={`text-3xl font-bold ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}
                 >
                   {getTypeCount(type)}
                 </div>
-                <div className={`${darkMode ? 'text-gray-400' : 'text-gray-600'} text-sm`}>
+                <div className={`${darkMode ? 'text-gray-400' : 'text-gray-600'} text-sm font-medium mt-2`}>
                   {type}
                 </div>
               </div>
@@ -207,12 +224,54 @@ function AdminPanel({
           </div>
         </section>
 
-        {/* Ticket Management Table */}
+        {/* Ticket Management Header */}
         <section>
-          <div className="flex justify-between items-center mb-4">
-            <h3 className={`font-medium text-lg ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-              Ticket Management
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+            <h3 className={`font-bold text-2xl ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+              🎫 Ticket Management
             </h3>
+            <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Search tickets..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className={`pl-10 pr-4 py-2 rounded-lg border ${
+                    darkMode 
+                      ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                      : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+                  } focus:ring-2 focus:ring-blue-500 w-full sm:w-64`}
+                />
+                <svg 
+                  className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className={`px-4 py-2 rounded-lg border ${
+                  darkMode 
+                    ? 'bg-gray-700 border-gray-600 text-white' 
+                    : 'bg-white border-gray-300 text-gray-900'
+                }`}
+              >
+                <option value="All">All Status</option>
+                <option value="Evaluation">Evaluation</option>
+                <option value="Pending">Pending</option>
+                <option value="Scheduled">Scheduled</option>
+                <option value="Repaired">Repaired</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Print All Button */}
+          <div className="flex justify-end mb-4">
             <button
               onClick={() => {
                 const printWindow = window.open('', '_blank');
@@ -281,193 +340,245 @@ function AdminPanel({
               🖨️ Print All
             </button>
           </div>
-          <div
-            className={`${
-              darkMode ? 'bg-gray-800' : 'bg-white'
-            } overflow-x-auto rounded-lg shadow-md border`}
-          >
-            <table className="min-w-full">
-              <thead className={darkMode ? 'bg-gray-700' : 'bg-gray-100'}>
-                <tr>
-                  <th className="py-2 px-4 border-b">Ticket #</th>
-                  <th className="py-2 px-4 border-b">Requestee</th>
-                  <th className="py-2 px-4 border-b">Office</th>
-                  <th className="py-2 px-4 border-b">Type</th>
-                  <th className="py-2 px-4 border-b">Problem</th>
-                  <th className="py-2 px-4 border-b">Status</th>
-                  <th className="py-2 px-4 border-b">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {tickets.map((ticket) => (
-                  <tr
-                    key={ticket.id}
-                    className={`${
-                      darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'
-                    } transition cursor-pointer`}
-                    onClick={() => openTicketModal(ticket)}
-                  >
-                    <td className="py-2 px-4 border-b text-center text-blue-500 underline font-mono">
-                      #{ticket.ticket_number}
-                    </td>
-                    <td className="py-2 px-4 border-b">{ticket.requestee}</td>
-                    <td className="py-2 px-4 border-b">{ticket.office}</td>
-                    <td className="py-2 px-4 border-b">{ticket.repair_type}</td>
-                    <td className="py-2 px-4 border-b text-sm truncate max-w-xs" title={ticket.problem}>
-                      {ticket.problem}
-                    </td>
-                    <td className="py-2 px-4 border-b">
-                      <span
-                        className={`inline-block px-2 py-1 text-xs rounded-full ${
-                          ticket.status === 'Repaired'
-                            ? 'bg-green-100 text-green-800'
-                            : ticket.status === 'Scheduled'
-                            ? 'bg-blue-100 text-blue-800'
-                            : ticket.status === 'Pending'
-                            ? 'bg-yellow-100 text-yellow-800'
-                            : 'bg-gray-100 text-gray-800'
-                        }`}
-                      >
-                        {ticket.status}
-                      </span>
-                    </td>
-                    <td className="py-2 px-4 border-b text-center">
-                      <div className="flex flex-col gap-1">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openTicketModal(ticket);
-                          }}
-                          className="text-blue-500 hover:text-blue-400 text-xs"
-                        >
-                          Open
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openChat(ticket);
-                          }}
-                          className="text-green-500 hover:text-green-400 text-xs"
-                        >
-                          💬 Chat
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const printWindow = window.open('', '_blank');
-                            const ticketHtml = `
-                              <!DOCTYPE html>
-                              <html>
-                              <head>
-                                <title>Ticket #${ticket.ticket_number}</title>
-                                <style>
-                                  body { font-family: Arial, sans-serif; margin: 20px; }
-                                  .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px; }
-                                  .logo { width: 80px; height: 80px; object-fit: cover; border-radius: 50%; }
-                                  h1 { margin: 5px 0; color: #0066cc; }
-                                  .info-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin: 20px 0; }
-                                  .field { border: 1px solid #ddd; padding: 10px; border-radius: 5px; }
-                                  .label { font-weight: bold; color: #555; margin-bottom: 5px; }
-                                  .value { color: #333; }
-                                  .status { 
-                                    padding: 10px; 
-                                    border-radius: 5px; 
-                                    font-weight: bold; 
-                                    text-align: center;
-                                    margin: 20px 0;
-                                    background-color: ${
-                                      ticket.status === 'Repaired' ? '#d4edda' :
-                                      ticket.status === 'Scheduled' ? '#d1ecf1' :
-                                      ticket.status === 'Pending' ? '#fff3cd' : '#f8f9fa'
-                                    };
-                                    color: ${
-                                      ticket.status === 'Repaired' ? '#155724' :
-                                      ticket.status === 'Scheduled' ? '#0c5460' :
-                                      ticket.status === 'Pending' ? '#856404' : '#383d41'
-                                    };
-                                  }
-                                  @media print {
-                                    body { margin: 0; }
-                                    .no-print { display: none !important; }
-                                  }
-                                </style>
-                              </head>
-                              <body>
-                                <div class="header">
-                                  <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQzP364l67W5zbf2Sm_NbQ4ojteKyj3nIIvMg&s" alt="ICT Logo" class="logo">
-                                  <h1>ICT Repair Ticket System</h1>
-                                  <p>Repair Ticket Details</p>
-                                </div>
-                                
-                                <div class="info-grid">
-                                  <div class="field">
-                                    <div class="label">Ticket Number</div>
-                                    <div class="value">#${ticket.ticket_number}</div>
-                                  </div>
-                                  <div class="field">
-                                    <div class="label">Date Submitted</div>
-                                    <div class="value">${new Date(ticket.created_at).toLocaleDateString()}</div>
-                                  </div>
-                                  <div class="field">
-                                    <div class="label">Requestee</div>
-                                    <div class="value">${ticket.requestee}</div>
-                                  </div>
-                                  <div class="field">
-                                    <div class="label">Office</div>
-                                    <div class="value">${ticket.office}</div>
-                                  </div>
-                                  <div class="field">
-                                    <div class="label">Repair Type</div>
-                                    <div class="value">${ticket.repair_type}</div>
-                                  </div>
-                                  <div class="field">
-                                    <div class="label">Status</div>
-                                    <div class="value">${ticket.status}</div>
-                                  </div>
-                                  <div class="field">
-                                    <div class="label">Technician</div>
-                                    <div class="value">${ticket.technician || 'Not assigned'}</div>
-                                  </div>
-                                  <div class="field">
-                                    <div class="label">Scheduled Date</div>
-                                    <div class="value">${ticket.scheduled_date ? new Date(ticket.scheduled_date).toLocaleDateString() : 'Not scheduled'}</div>
-                                  </div>
-                                </div>
-                                
-                                <div class="field">
-                                  <div class="label">Problem Description</div>
-                                  <div class="value">${ticket.problem}</div>
-                                </div>
-                                
-                                <div class="status">
-                                  Current Status: ${ticket.status}
-                                </div>
-                                
-                                <div class="no-print" style="text-align: center; margin-top: 30px; color: #666;">
-                                  <p>Printed on: ${new Date().toLocaleString()}</p>
-                                </div>
-                              </body>
-                              </html>
-                            `;
-                            printWindow.document.write(ticketHtml);
-                            printWindow.document.close();
-                            printWindow.print();
-                          }}
-                          className="text-blue-500 hover:text-blue-400 text-xs no-print"
-                        >
-                          🖨️ Print
-                        </button>
+
+          {/* Ticket Cards Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+            {sortedTickets.length === 0 ? (
+              <div className={`col-span-full text-center py-12 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                <div className="text-6xl mb-4">🔍</div>
+                <h3 className="text-xl font-medium mb-2">No tickets found</h3>
+                <p>Try adjusting your search or filter criteria</p>
+              </div>
+            ) : (
+              sortedTickets.map((ticket) => (
+                <div
+                  key={ticket.id}
+                  className={`${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-lg border overflow-hidden transition-all duration-300 hover:shadow-xl hover:scale-105 cursor-pointer`}
+                  onClick={() => openTicketModal(ticket)}
+                >
+                  {/* Card Header */}
+                  <div className={`px-6 py-4 ${
+                    ticket.status === 'Repaired' ? 'bg-green-600' :
+                    ticket.status === 'Scheduled' ? 'bg-blue-600' :
+                    ticket.status === 'Pending' ? 'bg-yellow-600' : 'bg-gray-600'
+                  }`}>
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h4 className="text-white font-bold text-lg">#{ticket.ticket_number}</h4>
+                        <p className="text-white/80 text-sm">{ticket.repair_type}</p>
                       </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      <div className="text-right">
+                        <span className={`px-3 py-1 rounded-full text-xs font-bold text-white ${
+                          ticket.status === 'Repaired' ? 'bg-green-500' :
+                          ticket.status === 'Scheduled' ? 'bg-blue-500' :
+                          ticket.status === 'Pending' ? 'bg-yellow-500' : 'bg-gray-500'
+                        }`}>
+                          {ticket.status}
+                        </span>
+                        {ticket.priority === 'RUSH' && (
+                          <span className="mt-1 inline-block px-2 py-1 rounded-full text-xs font-bold text-white bg-red-500">
+                            RUSH
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Card Body */}
+                  <div className="p-6 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                      <span className="font-medium">{ticket.requestee}</span>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                      </svg>
+                      <span>{ticket.office}</span>
+                    </div>
+
+                    <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
+                      <p className="text-sm text-gray-600 dark:text-gray-300 line-clamp-2">{ticket.problem}</p>
+                    </div>
+
+                    {ticket.technician && (
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="font-medium">👨‍🔧</span>
+                        <span>{ticket.technician}</span>
+                      </div>
+                    )}
+
+                    {ticket.scheduled_date && (
+                      <div className="flex items-center gap-2 text-sm">
+                        <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <span>{new Date(ticket.scheduled_date).toLocaleDateString()}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Card Footer */}
+                  <div className={`px-6 py-3 bg-gray-50 dark:bg-gray-700/50 flex justify-between items-center text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                    <span>{new Date(ticket.created_at).toLocaleDateString()}</span>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openChat(ticket);
+                        }}
+                        className="text-green-500 hover:text-green-600 flex items-center gap-1"
+                      >
+                        💬 Chat
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const printWindow = window.open('', '_blank');
+                          const ticketHtml = `
+                            <!DOCTYPE html>
+                            <html>
+                            <head>
+                              <title>Ticket #${ticket.ticket_number}</title>
+                              <style>
+                                body { font-family: Arial, sans-serif; margin: 20px; }
+                                .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px; }
+                                .logo { width: 80px; height: 80px; object-fit: cover; border-radius: 50%; }
+                                h1 { margin: 5px 0; color: #0066cc; }
+                                .info-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin: 20px 0; }
+                                .field { border: 1px solid #ddd; padding: 10px; border-radius: 5px; }
+                                .label { font-weight: bold; color: #555; margin-bottom: 5px; }
+                                .value { color: #333; }
+                                .status { 
+                                  padding: 10px; 
+                                  border-radius: 5px; 
+                                  font-weight: bold; 
+                                  text-align: center;
+                                  margin: 20px 0;
+                                  background-color: ${
+                                    ticket.status === 'Repaired' ? '#d4edda' :
+                                    ticket.status === 'Scheduled' ? '#d1ecf1' :
+                                    ticket.status === 'Pending' ? '#fff3cd' : '#f8f9fa'
+                                  };
+                                  color: ${
+                                    ticket.status === 'Repaired' ? '#155724' :
+                                    ticket.status === 'Scheduled' ? '#0c5460' :
+                                    ticket.status === 'Pending' ? '#856404' : '#383d41'
+                                  };
+                                }
+                                @media print {
+                                  body { margin: 0; }
+                                  .no-print { display: none !important; }
+                                }
+                              </style>
+                            </head>
+                            <body>
+                              <div class="header">
+                                <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQzP364l67W5zbf2Sm_NbQ4ojteKyj3nIIvMg&s" alt="ICT Logo" class="logo">
+                                <h1>ICT Repair Ticket System</h1>
+                                <p>Repair Ticket Details</p>
+                              </div>
+                              
+                              <div class="info-grid">
+                                <div class="field">
+                                  <div class="label">Ticket Number</div>
+                                  <div class="value">#${ticket.ticket_number}</div>
+                                </div>
+                                <div class="field">
+                                  <div class="label">Date Submitted</div>
+                                  <div class="value">${new Date(ticket.created_at).toLocaleDateString()}</div>
+                                </div>
+                                <div class="field">
+                                  <div class="label">Requestee</div>
+                                  <div class="value">${ticket.requestee}</div>
+                                </div>
+                                <div class="field">
+                                  <div class="label">Office</div>
+                                  <div class="value">${ticket.office}</div>
+                                </div>
+                                <div class="field">
+                                  <div class="label">Repair Type</div>
+                                  <div class="value">${ticket.repair_type}</div>
+                                </div>
+                                <div class="field">
+                                  <div class="label">Status</div>
+                                  <div class="value">${ticket.status}</div>
+                                </div>
+                                <div class="field">
+                                  <div class="label">Technician</div>
+                                  <div class="value">${ticket.technician || 'Not assigned'}</div>
+                                </div>
+                                <div class="field">
+                                  <div class="label">Scheduled Date</div>
+                                  <div class="value">${ticket.scheduled_date ? new Date(ticket.scheduled_date).toLocaleDateString() : 'Not scheduled'}</div>
+                                </div>
+                              </div>
+                              
+                              <div class="field">
+                                <div class="label">Problem Description</div>
+                                <div class="value">${ticket.problem}</div>
+                              </div>
+                              
+                              <div class="status">
+                                Current Status: ${ticket.status}
+                              </div>
+                              
+                              <div class="no-print" style="text-align: center; margin-top: 30px; color: #666;">
+                                <p>Printed on: ${new Date().toLocaleString()}</p>
+                              </div>
+                            </body>
+                            </html>
+                          `;
+                          printWindow.document.write(ticketHtml);
+                          printWindow.document.close();
+                          printWindow.print();
+                        }}
+                        className="text-blue-500 hover:text-blue-600 flex items-center gap-1 no-print"
+                      >
+                        🖨️ Print
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Stats Footer */}
+          <div className={`mt-6 p-4 rounded-xl ${
+            darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-gray-50 border border-gray-200'
+          }`}>
+            <div className="flex justify-between items-center text-sm">
+              <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>
+                Showing {sortedTickets.length} of {tickets.length} tickets
+              </span>
+              <div className="flex gap-4">
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-gray-400"></span>
+                  Evaluation: {tickets.filter(t => t.status === 'Evaluation').length}
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-yellow-400"></span>
+                  Pending: {tickets.filter(t => t.status === 'Pending').length}
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-blue-400"></span>
+                  Scheduled: {tickets.filter(t => t.status === 'Scheduled').length}
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-green-400"></span>
+                  Repaired: {tickets.filter(t => t.status === 'Repaired').length}
+                </span>
+              </div>
+            </div>
           </div>
         </section>
       </div>
 
-      {/* ✅ TICKET DETAIL MODAL - SCROLLABLE */}
+      {/* ✅ PROFESSIONAL TICKET DETAIL MODAL */}
       {selectedTicket && (
         <div
           className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4"
@@ -476,144 +587,214 @@ function AdminPanel({
           <div
             className={`${
               darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'
-            } w-full max-w-lg max-h-[90vh] flex flex-col rounded-xl shadow-2xl overflow-hidden`}
+            } w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl shadow-2xl overflow-hidden`}
             onClick={(e) => e.stopPropagation()}
             tabIndex="0"
           >
             {/* Header */}
-            <div className="p-6 border-b border-gray-700 bg-gray-800/50 flex justify-between items-center">
-              <h3 className="text-2xl font-bold text-blue-500">#{selectedTicket.ticket_number}</h3>
-              <button
-                onClick={closeModal}
-                className="text-gray-400 hover:text-gray-200 text-2xl leading-none w-8 h-8 flex items-center justify-center rounded-full transition hover:bg-gray-700"
-                aria-label="Close modal"
-              >
-                ×
-              </button>
+            <div className="p-6 border-b border-gray-700 bg-gradient-to-r from-blue-600 to-blue-700">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="text-3xl font-bold text-white mb-1">#{selectedTicket.ticket_number}</h3>
+                  <div className="flex items-center gap-2">
+                    <span className={`px-3 py-1 rounded-full text-sm font-bold text-white ${
+                      selectedTicket.status === 'Repaired' ? 'bg-green-500' :
+                      selectedTicket.status === 'Scheduled' ? 'bg-blue-500' :
+                      selectedTicket.status === 'Pending' ? 'bg-yellow-500' : 'bg-gray-500'
+                    }`}>
+                      {selectedTicket.status}
+                    </span>
+                    {selectedTicket.priority === 'RUSH' && (
+                      <span className="px-3 py-1 rounded-full text-sm font-bold text-white bg-red-500">
+                        RUSH
+                      </span>
+                    )}
+                    <span className={`text-sm ${darkMode ? 'text-blue-300' : 'text-blue-600'}`}>
+                      {selectedTicket.repair_type}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  onClick={closeModal}
+                  className="text-white hover:text-gray-200 text-3xl leading-none w-10 h-10 flex items-center justify-center rounded-full transition hover:bg-white/20"
+                  aria-label="Close modal"
+                >
+                  ×
+                </button>
+              </div>
             </div>
 
-            {/* Scrollable Content */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4" style={{ maxHeight: 'calc(90vh - 180px)' }}>
-              <div>
-                <label className="block text-sm font-medium mb-1">Requestee</label>
-                <input
-                  type="text"
-                  value={selectedTicket.requestee}
-                  onChange={(e) =>
-                    setSelectedTicket({ ...selectedTicket, requestee: e.target.value })
-                  }
-                  className={`w-full border rounded p-2 ${
-                    darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
-                  }`}
-                  autoFocus
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Office</label>
-                <input
-                  type="text"
-                  value={selectedTicket.office}
-                  onChange={(e) =>
-                    setSelectedTicket({ ...selectedTicket, office: e.target.value })
-                  }
-                  className={`w-full border rounded p-2 ${
-                    darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
-                  }`}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Repair Type</label>
-                <select
-                  value={selectedTicket.repair_type}
-                  onChange={(e) =>
-                    setSelectedTicket({ ...selectedTicket, repair_type: e.target.value })
-                  }
-                  className={`w-full border rounded p-2 ${
-                    darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
-                  }`}
-                >
-                  <option>Desktop</option>
-                  <option>Laptop</option>
-                  <option>Printer</option>
-                  <option>Internet</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Problem Description</label>
-                <textarea
-                  rows={4}
-                  value={selectedTicket.problem}
-                  onChange={(e) =>
-                    setSelectedTicket({ ...selectedTicket, problem: e.target.value })
-                  }
-                  className={`w-full border rounded p-2 ${
-                    darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
-                  }`}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Status</label>
-                <select
-                  value={selectedTicket.status}
-                  onChange={(e) =>
-                    setSelectedTicket({ ...selectedTicket, status: e.target.value })
-                  }
-                  className={`w-full border rounded p-2 ${
-                    darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
-                  }`}
-                >
-                  <option>Evaluation</option>
-                  <option>Pending</option>
-                  <option>Scheduled</option>
-                  <option>Repaired</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Technician Assigned</label>
-                <input
-                  type="text"
-                  value={selectedTicket.technician || ''}
-                  onChange={(e) =>
-                    setSelectedTicket({ ...selectedTicket, technician: e.target.value })
-                  }
-                  placeholder="Enter technician name"
-                  className={`w-full border rounded p-2 ${
-                    darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
-                  }`}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Scheduled Date</label>
-                <input
-                  type="date"
-                  value={selectedTicket.scheduled_date || ''}
-                  onChange={(e) =>
-                    setSelectedTicket({ ...selectedTicket, scheduled_date: e.target.value })
-                  }
-                  className={`w-full border rounded p-2 ${
-                    darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
-                  }`}
-                />
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-8 space-y-8" style={{ maxHeight: 'calc(90vh - 200px)' }}>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {/* Left Column - Request Info */}
+                <div className="space-y-6">
+                  <div>
+                    <h4 className={`text-lg font-semibold mb-4 ${darkMode ? 'text-blue-300' : 'text-blue-700'}`}>
+                      📋 Request Information
+                    </h4>
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-3">
+                        <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                        <div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400">Requestee</div>
+                          <div className="font-medium">{selectedTicket.requestee}</div>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-3">
+                        <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                        </svg>
+                        <div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400">Office</div>
+                          <div className="font-medium">{selectedTicket.office}</div>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-3">
+                        <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                        <div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400">Equipment</div>
+                          <div className="font-medium">{selectedTicket.equipment || 'Not specified'}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className={`text-lg font-semibold mb-4 ${darkMode ? 'text-blue-300' : 'text-blue-700'}`}>
+                      📅 Date & Time
+                    </h4>
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-3">
+                        <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400">Submitted</div>
+                          <div className="font-medium">{new Date(selectedTicket.created_at).toLocaleString()}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Column - Problem & Status */}
+                <div className="space-y-6">
+                  <div>
+                    <h4 className={`text-lg font-semibold mb-4 ${darkMode ? 'text-blue-300' : 'text-blue-700'}`}>
+                      🛠️ Problem Description
+                    </h4>
+                    <div className={`p-4 rounded-lg ${
+                      darkMode ? 'bg-gray-700' : 'bg-gray-50'
+                    } min-h-24`}>
+                      <p className="text-sm leading-relaxed">{selectedTicket.problem}</p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className={`text-lg font-semibold mb-4 ${darkMode ? 'text-blue-300' : 'text-blue-700'}`}>
+                      🔄 Status & Assignment
+                    </h4>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium mb-2">Status</label>
+                        <select
+                          value={selectedTicket.status}
+                          onChange={(e) =>
+                            setSelectedTicket({ ...selectedTicket, status: e.target.value })
+                          }
+                          className={`w-full border rounded-lg p-3 ${
+                            darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
+                          }`}
+                        >
+                          <option>Evaluation</option>
+                          <option>Pending</option>
+                          <option>Scheduled</option>
+                          <option>Repaired</option>
+                        </select>
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium mb-2">Technician Assigned</label>
+                        <input
+                          type="text"
+                          value={selectedTicket.technician || ''}
+                          onChange={(e) =>
+                            setSelectedTicket({ ...selectedTicket, technician: e.target.value })
+                          }
+                          placeholder="Enter technician name"
+                          className={`w-full border rounded-lg p-3 ${
+                            darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
+                          }`}
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium mb-2">Scheduled Date</label>
+                        <input
+                          type="date"
+                          value={selectedTicket.scheduled_date || ''}
+                          onChange={(e) =>
+                            setSelectedTicket({ ...selectedTicket, scheduled_date: e.target.value })
+                          }
+                          className={`w-full border rounded-lg p-3 ${
+                            darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
+                          }`}
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium mb-2">Priority Level</label>
+                        <select
+                          value={selectedTicket.priority || 'NORMAL'}
+                          onChange={(e) =>
+                            setSelectedTicket({ ...selectedTicket, priority: e.target.value })
+                          }
+                          className={`w-full border rounded-lg p-3 ${
+                            darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
+                          }`}
+                        >
+                          <option value="NORMAL">NORMAL</option>
+                          <option value="RUSH">RUSH</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
             {/* Action Buttons */}
-            <div className="flex flex-col space-y-2 p-6 bg-gray-50 dark:bg-gray-900 border-t border-gray-700">
+            <div className="flex justify-end items-center p-6 bg-gray-50 dark:bg-gray-900 border-t border-gray-700 space-x-3">
               <button
                 onClick={saveChanges}
-                className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md transition"
+                title="Save Changes"
+                className="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-lg transition flex items-center justify-center"
               >
-                💾 Save Changes
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
               </button>
+              
               <button
                 onClick={() => {
                   onUpdateTicket({ ...selectedTicket, status: 'Repaired' });
                   closeModal();
                 }}
-                className="bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-md transition"
+                title="Mark as Repaired"
+                className="bg-green-600 hover:bg-green-700 text-white p-3 rounded-lg transition flex items-center justify-center"
               >
-                ✅ Mark as Repaired
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
               </button>
+              
               <button
                 onClick={() => {
                   if (window.confirm('Are you sure you want to delete this ticket?')) {
@@ -621,17 +802,24 @@ function AdminPanel({
                     closeModal();
                   }
                 }}
-                className="bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-md transition"
+                title="Delete Ticket"
+                className="bg-red-600 hover:bg-red-700 text-white p-3 rounded-lg transition flex items-center justify-center"
               >
-                ❌ Delete Ticket
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
               </button>
+              
               <button
                 onClick={closeModal}
-                className={`py-2 px-4 rounded-md ${
-                  darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'
+                title="Cancel"
+                className={`p-3 rounded-lg transition flex items-center justify-center ${
+                  darkMode ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-800'
                 }`}
               >
-                Cancel
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
               </button>
             </div>
           </div>
@@ -703,7 +891,7 @@ function AdminPanel({
                   onChange={(e) => setNewMessage(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
                   placeholder="Type your message..."
-                  className={`flex-1 border rounded px-3 py-2 ${
+                  className={`flex-1 border rounded-lg px-3 py-2 ${
                     darkMode
                       ? 'bg-gray-700 border-gray-600 text-white'
                       : 'bg-white border-gray-300'
@@ -711,7 +899,7 @@ function AdminPanel({
                 />
                 <button
                   onClick={sendMessage}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
                 >
                   Send
                 </button>
@@ -735,6 +923,7 @@ export default function App() {
     equipment: '',
     problem: '',
     requestee: '',
+    priority: 'NORMAL'
   });
   // Track ticket
   const [ticketNumberInput, setTicketNumberInput] = useState('');
@@ -828,6 +1017,7 @@ export default function App() {
       requestee: formData.requestee,
       status: 'Evaluation',
       ticket_number: fullTicketNumber,
+      priority: formData.priority
     };
     const { error } = await supabase.from('tickets').insert([newTicket]);
     if (error) {
@@ -842,6 +1032,7 @@ export default function App() {
       equipment: '',
       problem: '',
       requestee: '',
+      priority: 'NORMAL'
     });
     setNewTicketNumber(fullTicketNumber);
     setEnteredVerificationCode('');
@@ -1302,56 +1493,104 @@ export default function App() {
             } p-8 rounded-2xl shadow-xl max-w-2xl mx-auto`}
           >
             <h2 className="text-2xl font-bold mb-6 text-center">📬 Submit a Repair Request</h2>
-            <form onSubmit={handleSubmit} className="space-y-5">
-              <div>
-                <label className="block text-sm font-medium mb-1">Office Requesting</label>
-                <input
-                  type="text"
-                  value={formData.office}
-                  onChange={(e) => setFormData({ ...formData, office: e.target.value })}
-                  required
-                  className={`w-full border rounded-lg p-3 ${
-                    darkMode
-                      ? 'bg-gray-700 border-gray-600 text-white'
-                      : 'bg-white border-gray-300 text-gray-900'
-                  } focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
-                />
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Office Requesting</label>
+                  <input
+                    type="text"
+                    value={formData.office}
+                    onChange={(e) => setFormData({ ...formData, office: e.target.value })}
+                    required
+                    className={`w-full border rounded-lg p-3 ${
+                      darkMode
+                        ? 'bg-gray-700 border-gray-600 text-white'
+                        : 'bg-white border-gray-300 text-gray-900'
+                    } focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Name of Requestee</label>
+                  <input
+                    type="text"
+                    value={formData.requestee}
+                    onChange={(e) => setFormData({ ...formData, requestee: e.target.value })}
+                    required
+                    className={`w-full border rounded-lg p-3 ${
+                      darkMode
+                        ? 'bg-gray-700 border-gray-600 text-white'
+                        : 'bg-white border-gray-300 text-gray-900'
+                    }`}
+                  />
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Type of Repair</label>
-                <select
-                  value={formData.repairType}
-                  onChange={(e) => setFormData({ ...formData, repairType: e.target.value })}
-                  className={`w-full border rounded-lg p-3 ${
-                    darkMode
-                      ? 'bg-gray-700 border-gray-600 text-white'
-                      : 'bg-white border-gray-300 text-gray-900'
-                  }`}
-                >
-                  <option>Desktop</option>
-                  <option>Laptop</option>
-                  <option>Printer</option>
-                  <option>Internet</option>
-                </select>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Type of Repair</label>
+                  <select
+                    value={formData.repairType}
+                    onChange={(e) => setFormData({ ...formData, repairType: e.target.value })}
+                    className={`w-full border rounded-lg p-3 ${
+                      darkMode
+                        ? 'bg-gray-700 border-gray-600 text-white'
+                        : 'bg-white border-gray-300 text-gray-900'
+                    }`}
+                  >
+                    <option>Desktop</option>
+                    <option>Laptop</option>
+                    <option>Printer</option>
+                    <option>Internet</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Equipment Name</label>
+                  <input
+                    type="text"
+                    value={formData.equipment}
+                    onChange={(e) => setFormData({ ...formData, equipment: e.target.value })}
+                    required
+                    className={`w-full border rounded-lg p-3 ${
+                      darkMode
+                        ? 'bg-gray-700 border-gray-600 text-white'
+                        : 'bg-white border-gray-300 text-gray-900'
+                    }`}
+                  />
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Equipment Name</label>
-                <input
-                  type="text"
-                  value={formData.equipment}
-                  onChange={(e) => setFormData({ ...formData, equipment: e.target.value })}
-                  required
-                  className={`w-full border rounded-lg p-3 ${
-                    darkMode
-                      ? 'bg-gray-700 border-gray-600 text-white'
-                      : 'bg-white border-gray-300 text-gray-900'
-                  }`}
-                />
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Priority Level</label>
+                  <div className="flex space-x-4">
+                    <label className={`flex items-center ${darkMode ? 'text-white' : 'text-gray-700'}`}>
+                      <input
+                        type="radio"
+                        value="NORMAL"
+                        checked={formData.priority === 'NORMAL'}
+                        onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
+                        className="mr-2 h-4 w-4 text-blue-600"
+                      />
+                      <span className="font-medium">NORMAL</span>
+                    </label>
+                    <label className={`flex items-center ${darkMode ? 'text-white' : 'text-gray-700'}`}>
+                      <input
+                        type="radio"
+                        value="RUSH"
+                        checked={formData.priority === 'RUSH'}
+                        onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
+                        className="mr-2 h-4 w-4 text-red-600"
+                      />
+                      <span className="font-medium text-red-600">RUSH</span>
+                    </label>
+                  </div>
+                </div>
               </div>
+
               <div>
-                <label className="block text-sm font-medium mb-1">Problem Description</label>
+                <label className="block text-sm font-medium mb-2">Problem Description</label>
                 <textarea
-                  rows={4}
+                  rows={5}
                   value={formData.problem}
                   onChange={(e) => setFormData({ ...formData, problem: e.target.value })}
                   required
@@ -1360,31 +1599,19 @@ export default function App() {
                       ? 'bg-gray-700 border-gray-600 text-white'
                       : 'bg-white border-gray-300 text-gray-900'
                   }`}
+                  placeholder="Please describe the issue in detail..."
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Name of Requestee</label>
-                <input
-                  type="text"
-                  value={formData.requestee}
-                  onChange={(e) => setFormData({ ...formData, requestee: e.target.value })}
-                  required
-                  className={`w-full border rounded-lg p-3 ${
-                    darkMode
-                      ? 'bg-gray-700 border-gray-600 text-white'
-                      : 'bg-white border-gray-300 text-gray-900'
-                  }`}
-                />
-              </div>
+
               {/* Verification Code */}
-              <div className={`p-5 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
-                <h3 className="font-medium mb-2 flex items-center gap-2">
+              <div className={`p-6 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                <h3 className="font-medium text-lg mb-3 flex items-center gap-2">
                   🔐 Enter Verification Code
                 </h3>
                 <p className="text-sm mb-3 text-gray-500">
                   Confirm submission by entering the code below.
                 </p>
-                <div className="mb-3 text-2xl font-bold tracking-widest bg-white text-blue-600 rounded-lg px-4 py-2 inline-block">
+                <div className="mb-3 text-3xl font-bold tracking-widest bg-white text-blue-600 rounded-lg px-6 py-3 inline-block">
                   {generatedCode}
                 </div>
                 <input
@@ -1397,18 +1624,19 @@ export default function App() {
                   }}
                   required
                   placeholder="Enter code above"
-                  className={`w-full border rounded-lg p-3 text-center text-lg ${
+                  className={`w-full border rounded-lg p-3 text-center text-xl ${
                     darkMode
                       ? 'bg-gray-700 border-gray-600 text-white'
                       : 'bg-white border-gray-300 text-gray-900'
                   }`}
                 />
               </div>
+
               <button
                 type="submit"
                 className={`w-full ${
                   darkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-600 hover:bg-blue-700'
-                } text-white py-3 px-6 rounded-lg text-lg font-medium hover:shadow-lg transition`}
+                } text-white py-4 px-6 rounded-lg text-lg font-medium hover:shadow-lg transition flex items-center justify-center gap-2`}
               >
                 🚀 Submit Ticket
               </button>
@@ -1480,6 +1708,11 @@ export default function App() {
                       {trackedTicket.scheduled_date
                         ? new Date(trackedTicket.scheduled_date).toLocaleDateString()
                         : 'Not scheduled yet'}
+                    </p>
+                    <p><span className="font-medium">⚡ Priority:</span> 
+                      <span className={`ml-2 px-2 py-1 rounded-full text-xs ${
+                        trackedTicket.priority === 'RUSH' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'
+                      }`}>{trackedTicket.priority}</span>
                     </p>
                   </div>
                   
@@ -1711,7 +1944,7 @@ export default function App() {
                   onChange={(e) => setNewUserMessage(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && sendUserMessage()}
                   placeholder="Type your message..."
-                  className={`flex-1 border rounded px-3 py-2 ${
+                  className={`flex-1 border rounded-lg px-3 py-2 ${
                     darkMode
                       ? 'bg-gray-700 border-gray-600 text-white'
                       : 'bg-white border-gray-300'
@@ -1719,7 +1952,7 @@ export default function App() {
                 />
                 <button
                   onClick={sendUserMessage}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
                 >
                   Send
                 </button>
