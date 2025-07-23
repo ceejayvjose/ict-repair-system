@@ -1,6 +1,41 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { supabase } from './supabaseClient';
 
+// Tutorial steps
+const tutorialSteps = [
+  {
+    title: "Welcome to ICT Repair System",
+    content: "This tutorial will guide you through submitting a repair ticket and checking its status.",
+    icon: "👋"
+  },
+  {
+    title: "Step 1: Submit a Ticket",
+    content: "Click 'Submit Ticket' to report an issue with your computer, laptop, printer, or internet connection. Fill out the form with your office, equipment details, and problem description.",
+    icon: "🛠️"
+  },
+  {
+    title: "Step 2: Verification Code",
+    content: "Enter the 4-digit verification code shown on screen to confirm your submission. This helps prevent spam submissions.",
+    icon: "🔐"
+  },
+  {
+    title: "Step 3: Save Your Ticket Number",
+    content: "After submission, you'll receive a unique ticket number. Keep this number safe as you'll need it to track your repair status.",
+    icon: "📌"
+  },
+  {
+    title: "Step 4: Track Your Ticket",
+    content: "Click 'Track Ticket' and enter your ticket number to check the current status of your repair request. You'll see updates from our technicians.",
+    icon: "🔍"
+  },
+  {
+    title: "Step 5: Status Updates",
+    content: "Your ticket status will change from 'Evaluation' to 'Scheduled' and finally 'Repaired' as we work on your request. You can also see which technician is assigned to your repair.",
+    icon: "🔄"
+  }
+];
+
+// Move AdminPanel before usage
 function AdminPanel({
   tickets,
   onUpdateTicket,
@@ -12,6 +47,12 @@ function AdminPanel({
   darkMode,
 }) {
   const [selectedTicket, setSelectedTicket] = useState(null);
+  const [selectedChatTicket, setSelectedChatTicket] = useState(null);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [newMessage, setNewMessage] = useState('');
+  const [showChat, setShowChat] = useState(false);
+  const messagesEndRef = useRef(null);
+  const chatChannelRef = useRef(null);
 
   const openTicketModal = (ticket) => {
     setSelectedTicket({ ...ticket });
@@ -25,6 +66,89 @@ function AdminPanel({
     await onUpdateTicket(selectedTicket);
     closeModal();
   };
+
+  // Open chat for ticket
+  const openChat = async (ticket) => {
+    setSelectedChatTicket(ticket);
+    setShowChat(true);
+    setNewMessage('');
+    
+    // Fetch chat messages
+    const { data, error } = await supabase
+      .from('chat_messages')
+      .select('*')
+      .eq('ticket_number', ticket.ticket_number)
+      .order('created_at', { ascending: true });
+    
+    if (error) {
+      console.error('Error fetching chat messages:', error);
+    } else {
+      setChatMessages(data);
+    }
+
+    // Remove previous channel if exists
+    if (chatChannelRef.current) {
+      supabase.removeChannel(chatChannelRef.current);
+    }
+
+    // Listen for new messages
+    chatChannelRef.current = supabase
+      .channel(`chat-${ticket.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'chat_messages',
+          filter: `ticket_number=eq.${ticket.ticket_number}`
+        },
+        (payload) => {
+          setChatMessages(prev => [...prev, payload.new]);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      if (chatChannelRef.current) {
+        supabase.removeChannel(chatChannelRef.current);
+      }
+    };
+  };
+
+  const sendMessage = async () => {
+    if (!newMessage.trim() || !selectedChatTicket) return;
+
+    const { error } = await supabase
+      .from('chat_messages')
+      .insert([
+        {
+          ticket_number: selectedChatTicket.ticket_number,
+          sender_type: 'admin',
+          message: newMessage
+        }
+      ]);
+
+    if (error) {
+      console.error('Error sending message:', error);
+    } else {
+      setNewMessage('');
+    }
+  };
+
+  const closeChat = () => {
+    if (chatChannelRef.current) {
+      supabase.removeChannel(chatChannelRef.current);
+    }
+    setShowChat(false);
+    setSelectedChatTicket(null);
+    setChatMessages([]);
+    setNewMessage('');
+  };
+
+  // Auto-scroll to bottom
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatMessages]);
 
   return (
     <>
@@ -139,15 +263,26 @@ function AdminPanel({
                       </span>
                     </td>
                     <td className="py-2 px-4 border-b text-center">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openTicketModal(ticket);
-                        }}
-                        className="text-blue-500 hover:text-blue-400 text-xs"
-                      >
-                        Open
-                      </button>
+                      <div className="flex flex-col gap-1">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openTicketModal(ticket);
+                          }}
+                          className="text-blue-500 hover:text-blue-400 text-xs"
+                        >
+                          Open
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openChat(ticket);
+                          }}
+                          className="text-green-500 hover:text-green-400 text-xs"
+                        >
+                          💬 Chat
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -157,7 +292,7 @@ function AdminPanel({
         </section>
       </div>
 
-      {/* SCROLLABLE TICKET DETAIL MODAL */}
+      {/* ✅ TICKET DETAIL MODAL - SCROLLABLE */}
       {selectedTicket && (
         <div
           className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4"
@@ -320,6 +455,86 @@ function AdminPanel({
           </div>
         </div>
       )}
+
+      {/* ✅ CHAT WINDOW FOR ADMIN */}
+      {showChat && selectedChatTicket && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+          <div
+            className={`${
+              darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'
+            } w-full max-w-lg h-[80vh] flex flex-col rounded-xl shadow-2xl overflow-hidden`}
+          >
+            {/* Header */}
+            <div className="p-4 border-b border-gray-700 bg-gray-800/50 flex justify-between items-center">
+              <div>
+                <h3 className="text-xl font-bold text-blue-500">
+                  Chat with #{selectedChatTicket.ticket_number}
+                </h3>
+                <p className="text-sm text-gray-400">Admin Conversation</p>
+              </div>
+              <button
+                onClick={closeChat}
+                className="text-gray-400 hover:text-gray-200 text-2xl leading-none w-8 h-8 flex items-center justify-center rounded-full transition hover:bg-gray-700"
+                aria-label="Close chat"
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50/50 dark:bg-gray-900/50">
+              {chatMessages.length === 0 ? (
+                <p className="text-center text-gray-500 mt-4">No messages yet. Start the conversation!</p>
+              ) : (
+                chatMessages.map((msg) => (
+                  <div
+                    key={msg.id}
+                    className={`flex ${msg.sender_type === 'admin' ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div
+                      className={`max-w-xs px-4 py-2 rounded-lg ${
+                        msg.sender_type === 'admin'
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-300 text-gray-900'
+                      }`}
+                    >
+                      <p className="text-sm">{msg.message}</p>
+                      <p className="text-xs opacity-70 mt-1">
+                        {new Date(msg.created_at).toLocaleTimeString()}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Input */}
+            <div className="p-4 border-t border-gray-700">
+              <div className="flex space-x-2">
+                <input
+                  type="text"
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+                  placeholder="Type your message..."
+                  className={`flex-1 border rounded px-3 py-2 ${
+                    darkMode
+                      ? 'bg-gray-700 border-gray-600 text-white'
+                      : 'bg-white border-gray-300'
+                  }`}
+                />
+                <button
+                  onClick={sendMessage}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
+                >
+                  Send
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
@@ -356,6 +571,17 @@ export default function App() {
     const savedMode = localStorage.getItem('darkMode');
     return savedMode === 'true';
   });
+
+  // Chat state
+  const [showUserChat, setShowUserChat] = useState(false);
+  const [userMessages, setUserMessages] = useState([]);
+  const [newUserMessage, setNewUserMessage] = useState('');
+  const messagesEndRef = useRef(null);
+  const userChatChannelRef = useRef(null);
+
+  // Tutorial state
+  const [showTutorial, setShowTutorial] = useState(false);
+  const [tutorialStep, setTutorialStep] = useState(0);
 
   // Clock state
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -459,7 +685,7 @@ export default function App() {
   };
 
   // Track ticket
-  const handleTrackTicket = () => {
+  const handleTrackTicket = async () => {
     const input = ticketNumberInput.trim();
     if (!input) {
       setTrackingError('Please enter a ticket number.');
@@ -470,11 +696,115 @@ export default function App() {
     if (found) {
       setTrackedTicket(found);
       setTrackingError('');
+      
+      // Fetch chat messages
+      const { data, error } = await supabase
+        .from('chat_messages')
+        .select('*')
+        .eq('ticket_number', input)
+        .order('created_at', { ascending: true });
+      
+      if (error) {
+        console.error('Error fetching chat messages:', error);
+      } else {
+        setUserMessages(data);
+      }
     } else {
       setTrackedTicket(null);
       setTrackingError('Ticket not found. Please check the ticket number.');
+      setUserMessages([]);
     }
   };
+
+  // Open user chat
+  const openUserChat = () => {
+    if (!trackedTicket) return;
+    setShowUserChat(true);
+    setNewUserMessage('');
+  };
+
+  // Close user chat
+  const closeUserChat = () => {
+    if (userChatChannelRef.current) {
+      supabase.removeChannel(userChatChannelRef.current);
+    }
+    setShowUserChat(false);
+    setNewUserMessage('');
+    setUserMessages([]);
+  };
+
+  // Send user message
+  const sendUserMessage = async () => {
+    if (!newUserMessage.trim() || !trackedTicket) return;
+
+    const { error } = await supabase
+      .from('chat_messages')
+      .insert([
+        {
+          ticket_number: trackedTicket.ticket_number,
+          sender_type: 'user',
+          message: newUserMessage
+        }
+      ]);
+
+    if (error) {
+      console.error('Error sending message:', error);
+    } else {
+      setNewUserMessage('');
+      // Refresh messages
+      const { data } = await supabase
+        .from('chat_messages')
+        .select('*')
+        .eq('ticket_number', trackedTicket.ticket_number)
+        .order('created_at', { ascending: true });
+      setUserMessages(data);
+    }
+  };
+
+  // Auto-scroll to bottom
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [userMessages]);
+
+  // Listen for new messages
+  useEffect(() => {
+    if (!trackedTicket) return;
+
+    // Remove previous channel if exists
+    if (userChatChannelRef.current) {
+      supabase.removeChannel(userChatChannelRef.current);
+    }
+
+    userChatChannelRef.current = supabase
+      .channel(`user-chat-${trackedTicket.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'chat_messages',
+          filter: `ticket_number=eq.${trackedTicket.ticket_number}`
+        },
+        async (payload) => {
+          // Only update if it's not our own message
+          if (payload.new.sender_type !== 'user') {
+            const { data } = await supabase
+              .from('chat_messages')
+              .select('*')
+              .eq('ticket_number', trackedTicket.ticket_number)
+              .order('created_at', { ascending: true });
+            setUserMessages(data);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      if (userChatChannelRef.current) {
+        supabase.removeChannel(userChatChannelRef.current);
+      }
+    };
+  }, [trackedTicket]);
 
   // Post message
   const handlePostMessage = async () => {
@@ -524,6 +854,30 @@ export default function App() {
       fetchAdminMessage();
     };
     checkUser();
+
+    // Listen for REALTIME changes
+    const channel = supabase
+      .channel('public:tickets')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'tickets' },
+        () => fetchTickets()
+      )
+      .subscribe();
+
+    const messageChannel = supabase
+      .channel('public:admin_messages')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'admin_messages' },
+        () => fetchAdminMessage()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+      supabase.removeChannel(messageChannel);
+    };
   }, []);
 
   // Toggle Dark Mode
@@ -540,6 +894,22 @@ export default function App() {
     }, 1000);
     return () => clearInterval(timer);
   }, []);
+
+  // Tutorial functions
+  const nextTutorialStep = () => {
+    if (tutorialStep < tutorialSteps.length - 1) {
+      setTutorialStep(tutorialStep + 1);
+    } else {
+      setShowTutorial(false);
+      setTutorialStep(0);
+    }
+  };
+
+  const prevTutorialStep = () => {
+    if (tutorialStep > 0) {
+      setTutorialStep(tutorialStep - 1);
+    }
+  };
 
   return (
     <div className={`min-h-screen ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'} transition-colors duration-300`}>
@@ -577,6 +947,12 @@ export default function App() {
               </button>
             )}
             <button
+              onClick={() => setShowTutorial(true)}
+              className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-md flex items-center gap-2"
+            >
+              📚 Tutorial
+            </button>
+            <button
               onClick={toggleDarkMode}
               className={`px-4 py-2 rounded-md text-sm font-medium flex items-center gap-2 ${
                 darkMode
@@ -602,6 +978,79 @@ export default function App() {
           >
             <p className="font-bold text-lg mb-1">📢 Notice from Admin</p>
             <p>{adminMessage}</p>
+          </div>
+        )}
+
+        {/* Tutorial Modal */}
+        {showTutorial && (
+          <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
+            <div
+              className={`${
+                darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'
+              } p-6 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col transition-colors duration-300`}
+            >
+              {/* Header */}
+              <div className="flex justify-between items-start mb-5 border-b border-gray-700 pb-4">
+                <div className="flex items-center gap-4">
+                  <span className="text-4xl">{tutorialSteps[tutorialStep].icon}</span>
+                  <div>
+                    <h3 className="text-2xl font-bold">{tutorialSteps[tutorialStep].title}</h3>
+                    <div className={`text-sm ${darkMode ? 'text-blue-400' : 'text-blue-600'} font-medium`}>
+                      Step {tutorialStep + 1} of {tutorialSteps.length}
+                    </div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowTutorial(false);
+                    setTutorialStep(0);
+                  }}
+                  className={`text-gray-400 hover:text-gray-200 text-3xl leading-none w-10 h-10 flex items-center justify-center rounded-full transition ${
+                    darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
+                  }`}
+                  aria-label="Close tutorial"
+                >
+                  ×
+                </button>
+              </div>
+
+              {/* Content */}
+              <div className="flex-1 overflow-y-auto p-6 bg-gray-50 dark:bg-gray-900/50 rounded-xl mb-6">
+                <p className="text-lg leading-relaxed text-gray-700 dark:text-gray-300">
+                  {tutorialSteps[tutorialStep].content}
+                </p>
+              </div>
+
+              {/* Navigation */}
+              <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+                <div className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                  Step {tutorialStep + 1} of {tutorialSteps.length}
+                </div>
+                <div className="flex gap-3 w-full sm:w-auto">
+                  <button
+                    onClick={prevTutorialStep}
+                    disabled={tutorialStep === 0}
+                    className={`flex-1 sm:flex-initial px-5 py-2.5 rounded-lg font-medium transition ${
+                      tutorialStep === 0
+                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        : darkMode
+                        ? 'bg-gray-700 hover:bg-gray-600 text-white'
+                        : 'bg-gray-200 hover:bg-gray-300 text-gray-800'
+                    }`}
+                  >
+                    ← Previous
+                  </button>
+                  <button
+                    onClick={nextTutorialStep}
+                    className={`flex-1 sm:flex-initial px-5 py-2.5 rounded-lg font-medium text-white transition ${
+                      darkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-600 hover:bg-blue-700'
+                    }`}
+                  >
+                    {tutorialStep === tutorialSteps.length - 1 ? 'Finish' : 'Next →'}
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
@@ -848,6 +1297,16 @@ export default function App() {
                         : 'Not scheduled yet'}
                     </p>
                   </div>
+                  
+                  {/* Chat Button */}
+                  <div className="mt-6">
+                    <button
+                      onClick={openUserChat}
+                      className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md flex items-center gap-2"
+                    >
+                      💬 Open Chat
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -969,7 +1428,7 @@ export default function App() {
               <label htmlFor="agreeRedirect" className="ml-2 text-sm">
                 I agree to upload my report file in the next website{' '}
                 <a
-                  href=" https://docs.google.com/forms/d/e/1FAIpQLSeS_9axdB3it0MbZ1LrZnKfdVrro7p2x9ZqBslcj6W_h2UAMw/viewform "
+                  href="https://docs.google.com/forms/d/e/1FAIpQLSeS_9axdB3it0MbZ1LrZnKfdVrro7p2x9ZqBslcj6W_h2UAMw/viewform"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-blue-500 underline"
@@ -987,7 +1446,7 @@ export default function App() {
                 setShowModal(false);
                 setView('home');
                 window.location.href =
-                  'https://docs.google.com/forms/d/e/1FAIpQLSeS_9axdB3it0MbZ1LrZnKfdVrro7p2x9ZqBslcj6W_h2UAMw/viewform ';
+                  'https://docs.google.com/forms/d/e/1FAIpQLSeS_9axdB3it0MbZ1LrZnKfdVrro7p2x9ZqBslcj6W_h2UAMw/viewform';
               }}
               disabled={!agreedToRedirect}
               className={`w-full py-3 px-6 rounded-lg font-medium transition ${
@@ -998,6 +1457,86 @@ export default function App() {
             >
               Continue →
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ✅ USER CHAT WINDOW */}
+      {showUserChat && trackedTicket && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+          <div
+            className={`${
+              darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'
+            } w-full max-w-lg h-[80vh] flex flex-col rounded-xl shadow-2xl overflow-hidden`}
+          >
+            {/* Header */}
+            <div className="p-4 border-b border-gray-700 bg-gray-800/50 flex justify-between items-center">
+              <div>
+                <h3 className="text-xl font-bold text-blue-500">
+                  Chat with Support
+                </h3>
+                <p className="text-sm text-gray-400">Ticket: #{trackedTicket.ticket_number}</p>
+              </div>
+              <button
+                onClick={closeUserChat}
+                className="text-gray-400 hover:text-gray-200 text-2xl leading-none w-8 h-8 flex items-center justify-center rounded-full transition hover:bg-gray-700"
+                aria-label="Close chat"
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50/50 dark:bg-gray-900/50">
+              {userMessages.length === 0 ? (
+                <p className="text-center text-gray-500 mt-4">No messages yet. Say hello!</p>
+              ) : (
+                userMessages.map((msg) => (
+                  <div
+                    key={msg.id}
+                    className={`flex ${msg.sender_type === 'user' ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div
+                      className={`max-w-xs px-4 py-2 rounded-lg ${
+                        msg.sender_type === 'user'
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-300 text-gray-900'
+                      }`}
+                    >
+                      <p className="text-sm">{msg.message}</p>
+                      <p className="text-xs opacity-70 mt-1">
+                        {new Date(msg.created_at).toLocaleTimeString()}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Input */}
+            <div className="p-4 border-t border-gray-700">
+              <div className="flex space-x-2">
+                <input
+                  type="text"
+                  value={newUserMessage}
+                  onChange={(e) => setNewUserMessage(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && sendUserMessage()}
+                  placeholder="Type your message..."
+                  className={`flex-1 border rounded px-3 py-2 ${
+                    darkMode
+                      ? 'bg-gray-700 border-gray-600 text-white'
+                      : 'bg-white border-gray-300'
+                  }`}
+                />
+                <button
+                  onClick={sendUserMessage}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
+                >
+                  Send
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -1023,14 +1562,24 @@ export default function App() {
           <p className="text-sm">
             &copy; {new Date().getFullYear()} ICT Repair Ticket System
           </p>
-          <a
-            href="https://www.mediafire.com/file/g0e2ww83ty05nhc/ICT_Repair_Ticket_System_1_1.0.apk/file "
-            target="_blank"
-            rel="noopener noreferrer"
-            className={`inline-block bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-medium transition shadow-lg hover:shadow-green-900/30`}
-          >
-            📲 Download Mobile App
-          </a>
+          <div className="space-y-2">
+            <a
+              href="https://www.mediafire.com/file/g0e2ww83ty05nhc/ICT_Repair_Ticket_System_1_1.0.apk/file"
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`inline-block bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-medium transition shadow-lg hover:shadow-green-900/30`}
+            >
+              📱 Mobile App
+            </a>
+            <a
+              href="https://www.mediafire.com/file/6u7gu4k8s248nmu/ICT_Repair_Ticket_System.zip/file"
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`inline-block bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition shadow-lg hover:shadow-blue-900/30 ml-4`}
+            >
+              💻 Desktop App
+            </a>
+          </div>
         </div>
       </footer>
     </div>
