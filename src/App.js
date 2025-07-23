@@ -482,7 +482,10 @@ function AdminPanel({
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50/50 dark:bg-gray-900/50">
+            <div 
+              className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50/50 dark:bg-gray-900/50"
+              style={{ maxHeight: 'calc(80vh - 160px)' }}
+            >
               {chatMessages.length === 0 ? (
                 <p className="text-center text-gray-500 mt-4">No messages yet. Start the conversation!</p>
               ) : (
@@ -1487,7 +1490,10 @@ export default function App() {
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50/50 dark:bg-gray-900/50">
+            <div 
+              className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50/50 dark:bg-gray-900/50"
+              style={{ maxHeight: 'calc(80vh - 160px)' }}
+            >
               {userMessages.length === 0 ? (
                 <p className="text-center text-gray-500 mt-4">No messages yet. Say hello!</p>
               ) : (
