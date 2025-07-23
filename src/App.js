@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from './supabaseClient';
 
 // Tutorial steps
@@ -47,12 +47,6 @@ function AdminPanel({
   darkMode,
 }) {
   const [selectedTicket, setSelectedTicket] = useState(null);
-  const [selectedChatTicket, setSelectedChatTicket] = useState(null);
-  const [chatMessages, setChatMessages] = useState([]);
-  const [newMessage, setNewMessage] = useState('');
-  const [showChat, setShowChat] = useState(false);
-  const messagesEndRef = useRef(null);
-  const chatChannelRef = useRef(null);
 
   const openTicketModal = (ticket) => {
     setSelectedTicket({ ...ticket });
@@ -67,88 +61,108 @@ function AdminPanel({
     closeModal();
   };
 
-  // Open chat for ticket
-  const openChat = async (ticket) => {
-    setSelectedChatTicket(ticket);
-    setShowChat(true);
-    setNewMessage('');
+  // Print ticket function
+  const printTicket = (ticket) => {
+    const printWindow = window.open('', '_blank');
+    const ticketHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Ticket #${ticket.ticket_number}</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 20px; }
+          .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px; }
+          .logo { width: 80px; height: 80px; object-fit: cover; border-radius: 50%; }
+          h1 { margin: 5px 0; color: #0066cc; }
+          .info-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin: 20px 0; }
+          .field { border: 1px solid #ddd; padding: 10px; border-radius: 5px; }
+          .label { font-weight: bold; color: #555; margin-bottom: 5px; }
+          .value { color: #333; }
+          .status { 
+            padding: 10px; 
+            border-radius: 5px; 
+            font-weight: bold; 
+            text-align: center;
+            margin: 20px 0;
+            background-color: ${
+              ticket.status === 'Repaired' ? '#d4edda' :
+              ticket.status === 'Scheduled' ? '#d1ecf1' :
+              ticket.status === 'Pending' ? '#fff3cd' : '#f8f9fa'
+            };
+            color: ${
+              ticket.status === 'Repaired' ? '#155724' :
+              ticket.status === 'Scheduled' ? '#0c5460' :
+              ticket.status === 'Pending' ? '#856404' : '#383d41'
+            };
+          }
+          @media print {
+            body { margin: 0; }
+            .no-print { display: none !important; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQzP364l67W5zbf2Sm_NbQ4ojteKyj3nIIvMg&s" alt="ICT Logo" class="logo">
+          <h1>ICT Repair Ticket System</h1>
+          <p>Repair Ticket Details</p>
+        </div>
+        
+        <div class="info-grid">
+          <div class="field">
+            <div class="label">Ticket Number</div>
+            <div class="value">#${ticket.ticket_number}</div>
+          </div>
+          <div class="field">
+            <div class="label">Date Submitted</div>
+            <div class="value">${new Date(ticket.created_at).toLocaleDateString()}</div>
+          </div>
+          <div class="field">
+            <div class="label">Requestee</div>
+            <div class="value">${ticket.requestee}</div>
+          </div>
+          <div class="field">
+            <div class="label">Office</div>
+            <div class="value">${ticket.office}</div>
+          </div>
+          <div class="field">
+            <div class="label">Repair Type</div>
+            <div class="value">${ticket.repair_type}</div>
+          </div>
+          <div class="field">
+            <div class="label">Status</div>
+            <div class="value">${ticket.status}</div>
+          </div>
+          <div class="field">
+            <div class="label">Technician</div>
+            <div class="value">${ticket.technician || 'Not assigned'}</div>
+          </div>
+          <div class="field">
+            <div class="label">Scheduled Date</div>
+            <div class="value">${ticket.scheduled_date ? new Date(ticket.scheduled_date).toLocaleDateString() : 'Not scheduled'}</div>
+          </div>
+        </div>
+        
+        <div class="field">
+          <div class="label">Problem Description</div>
+          <div class="value">${ticket.problem}</div>
+        </div>
+        
+        <div class="status">
+          Current Status: ${ticket.status}
+        </div>
+        
+        <div class="no-print" style="text-align: center; margin-top: 30px; color: #666;">
+          <p>Printed on: ${new Date().toLocaleString()}</p>
+        </div>
+      </body>
+      </html>
+    `;
     
-    // Fetch chat messages
-    const { data, error } = await supabase
-      .from('chat_messages')
-      .select('*')
-      .eq('ticket_number', ticket.ticket_number)
-      .order('created_at', { ascending: true });
-    
-    if (error) {
-      console.error('Error fetching chat messages:', error);
-    } else {
-      setChatMessages(data);
-    }
-
-    // Remove previous channel if exists
-    if (chatChannelRef.current) {
-      supabase.removeChannel(chatChannelRef.current);
-    }
-
-    // Listen for new messages
-    chatChannelRef.current = supabase
-      .channel(`chat-${ticket.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'chat_messages',
-          filter: `ticket_number=eq.${ticket.ticket_number}`
-        },
-        (payload) => {
-          setChatMessages(prev => [...prev, payload.new]);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      if (chatChannelRef.current) {
-        supabase.removeChannel(chatChannelRef.current);
-      }
-    };
+    printWindow.document.write(ticketHtml);
+    printWindow.document.close();
+    printWindow.print();
   };
-
-  const sendMessage = async () => {
-    if (!newMessage.trim() || !selectedChatTicket) return;
-
-    const { error } = await supabase
-      .from('chat_messages')
-      .insert([
-        {
-          ticket_number: selectedChatTicket.ticket_number,
-          sender_type: 'admin',
-          message: newMessage
-        }
-      ]);
-
-    if (error) {
-      console.error('Error sending message:', error);
-    } else {
-      setNewMessage('');
-    }
-  };
-
-  const closeChat = () => {
-    if (chatChannelRef.current) {
-      supabase.removeChannel(chatChannelRef.current);
-    }
-    setShowChat(false);
-    setSelectedChatTicket(null);
-    setChatMessages([]);
-    setNewMessage('');
-  };
-
-  // Auto-scroll to bottom
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [chatMessages]);
 
   return (
     <>
@@ -209,9 +223,17 @@ function AdminPanel({
 
         {/* Ticket Management Table */}
         <section>
-          <h3 className={`font-medium text-lg mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-            Ticket Management
-          </h3>
+          <div className="flex justify-between items-center mb-4">
+            <h3 className={`font-medium text-lg ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+              Ticket Management
+            </h3>
+            <button
+              onClick={() => printTicket({ tickets, title: "All Tickets Report" })}
+              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm flex items-center gap-2 no-print"
+            >
+              🖨️ Print All
+            </button>
+          </div>
           <div
             className={`${
               darkMode ? 'bg-gray-800' : 'bg-white'
@@ -276,11 +298,11 @@ function AdminPanel({
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            openChat(ticket);
+                            printTicket(ticket);
                           }}
-                          className="text-green-500 hover:text-green-400 text-xs"
+                          className="text-green-500 hover:text-green-400 text-xs no-print"
                         >
-                          💬 Chat
+                          🖨️ Print
                         </button>
                       </div>
                     </td>
@@ -306,8 +328,15 @@ function AdminPanel({
             tabIndex="0"
           >
             {/* Header */}
-            <div className="p-6 border-b border-gray-700 bg-gray-800/50">
+            <div className="p-6 border-b border-gray-700 bg-gray-800/50 flex justify-between items-center">
               <h3 className="text-2xl font-bold text-blue-500">#{selectedTicket.ticket_number}</h3>
+              <button
+                onClick={closeModal}
+                className="text-gray-400 hover:text-gray-200 text-2xl leading-none w-8 h-8 flex items-center justify-center rounded-full transition hover:bg-gray-700"
+                aria-label="Close modal"
+              >
+                ×
+              </button>
             </div>
 
             {/* Scrollable Content */}
@@ -455,89 +484,6 @@ function AdminPanel({
           </div>
         </div>
       )}
-
-      {/* ✅ CHAT WINDOW FOR ADMIN */}
-      {showChat && selectedChatTicket && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
-          <div
-            className={`${
-              darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'
-            } w-full max-w-lg h-[80vh] flex flex-col rounded-xl shadow-2xl overflow-hidden`}
-          >
-            {/* Header */}
-            <div className="p-4 border-b border-gray-700 bg-gray-800/50 flex justify-between items-center">
-              <div>
-                <h3 className="text-xl font-bold text-blue-500">
-                  Chat with #{selectedChatTicket.ticket_number}
-                </h3>
-                <p className="text-sm text-gray-400">Admin Conversation</p>
-              </div>
-              <button
-                onClick={closeChat}
-                className="text-gray-400 hover:text-gray-200 text-2xl leading-none w-8 h-8 flex items-center justify-center rounded-full transition hover:bg-gray-700"
-                aria-label="Close chat"
-              >
-                ×
-              </button>
-            </div>
-
-            {/* Messages */}
-            <div 
-              className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50/50 dark:bg-gray-900/50"
-              style={{ maxHeight: 'calc(80vh - 160px)' }}
-            >
-              {chatMessages.length === 0 ? (
-                <p className="text-center text-gray-500 mt-4">No messages yet. Start the conversation!</p>
-              ) : (
-                chatMessages.map((msg) => (
-                  <div
-                    key={msg.id}
-                    className={`flex ${msg.sender_type === 'admin' ? 'justify-end' : 'justify-start'}`}
-                  >
-                    <div
-                      className={`max-w-xs px-4 py-2 rounded-lg ${
-                        msg.sender_type === 'admin'
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-gray-300 text-gray-900'
-                      }`}
-                    >
-                      <p className="text-sm">{msg.message}</p>
-                      <p className="text-xs opacity-70 mt-1">
-                        {new Date(msg.created_at).toLocaleTimeString()}
-                      </p>
-                    </div>
-                  </div>
-                ))
-              )}
-              <div ref={messagesEndRef} />
-            </div>
-
-            {/* Input */}
-            <div className="p-4 border-t border-gray-700">
-              <div className="flex space-x-2">
-                <input
-                  type="text"
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-                  placeholder="Type your message..."
-                  className={`flex-1 border rounded px-3 py-2 ${
-                    darkMode
-                      ? 'bg-gray-700 border-gray-600 text-white'
-                      : 'bg-white border-gray-300'
-                  }`}
-                />
-                <button
-                  onClick={sendMessage}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
-                >
-                  Send
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 }
@@ -574,13 +520,6 @@ export default function App() {
     const savedMode = localStorage.getItem('darkMode');
     return savedMode === 'true';
   });
-
-  // Chat state
-  const [showUserChat, setShowUserChat] = useState(false);
-  const [userMessages, setUserMessages] = useState([]);
-  const [newUserMessage, setNewUserMessage] = useState('');
-  const messagesEndRef = useRef(null);
-  const userChatChannelRef = useRef(null);
 
   // Tutorial state
   const [showTutorial, setShowTutorial] = useState(false);
@@ -688,7 +627,7 @@ export default function App() {
   };
 
   // Track ticket
-  const handleTrackTicket = async () => {
+  const handleTrackTicket = () => {
     const input = ticketNumberInput.trim();
     if (!input) {
       setTrackingError('Please enter a ticket number.');
@@ -699,115 +638,11 @@ export default function App() {
     if (found) {
       setTrackedTicket(found);
       setTrackingError('');
-      
-      // Fetch chat messages
-      const { data, error } = await supabase
-        .from('chat_messages')
-        .select('*')
-        .eq('ticket_number', input)
-        .order('created_at', { ascending: true });
-      
-      if (error) {
-        console.error('Error fetching chat messages:', error);
-      } else {
-        setUserMessages(data);
-      }
     } else {
       setTrackedTicket(null);
       setTrackingError('Ticket not found. Please check the ticket number.');
-      setUserMessages([]);
     }
   };
-
-  // Open user chat
-  const openUserChat = () => {
-    if (!trackedTicket) return;
-    setShowUserChat(true);
-    setNewUserMessage('');
-  };
-
-  // Close user chat
-  const closeUserChat = () => {
-    if (userChatChannelRef.current) {
-      supabase.removeChannel(userChatChannelRef.current);
-    }
-    setShowUserChat(false);
-    setNewUserMessage('');
-    setUserMessages([]);
-  };
-
-  // Send user message
-  const sendUserMessage = async () => {
-    if (!newUserMessage.trim() || !trackedTicket) return;
-
-    const { error } = await supabase
-      .from('chat_messages')
-      .insert([
-        {
-          ticket_number: trackedTicket.ticket_number,
-          sender_type: 'user',
-          message: newUserMessage
-        }
-      ]);
-
-    if (error) {
-      console.error('Error sending message:', error);
-    } else {
-      setNewUserMessage('');
-      // Refresh messages
-      const { data } = await supabase
-        .from('chat_messages')
-        .select('*')
-        .eq('ticket_number', trackedTicket.ticket_number)
-        .order('created_at', { ascending: true });
-      setUserMessages(data);
-    }
-  };
-
-  // Auto-scroll to bottom
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [userMessages]);
-
-  // Listen for new messages
-  useEffect(() => {
-    if (!trackedTicket) return;
-
-    // Remove previous channel if exists
-    if (userChatChannelRef.current) {
-      supabase.removeChannel(userChatChannelRef.current);
-    }
-
-    userChatChannelRef.current = supabase
-      .channel(`user-chat-${trackedTicket.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'chat_messages',
-          filter: `ticket_number=eq.${trackedTicket.ticket_number}`
-        },
-        async (payload) => {
-          // Only update if it's not our own message
-          if (payload.new.sender_type !== 'user') {
-            const { data } = await supabase
-              .from('chat_messages')
-              .select('*')
-              .eq('ticket_number', trackedTicket.ticket_number)
-              .order('created_at', { ascending: true });
-            setUserMessages(data);
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      if (userChatChannelRef.current) {
-        supabase.removeChannel(userChatChannelRef.current);
-      }
-    };
-  }, [trackedTicket]);
 
   // Post message
   const handlePostMessage = async () => {
@@ -1300,16 +1135,6 @@ export default function App() {
                         : 'Not scheduled yet'}
                     </p>
                   </div>
-                  
-                  {/* Chat Button */}
-                  <div className="mt-6">
-                    <button
-                      onClick={openUserChat}
-                      className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md flex items-center gap-2"
-                    >
-                      💬 Open Chat
-                    </button>
-                  </div>
                 </div>
               )}
             </div>
@@ -1460,89 +1285,6 @@ export default function App() {
             >
               Continue →
             </button>
-          </div>
-        </div>
-      )}
-
-      {/* ✅ USER CHAT WINDOW */}
-      {showUserChat && trackedTicket && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
-          <div
-            className={`${
-              darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'
-            } w-full max-w-lg h-[80vh] flex flex-col rounded-xl shadow-2xl overflow-hidden`}
-          >
-            {/* Header */}
-            <div className="p-4 border-b border-gray-700 bg-gray-800/50 flex justify-between items-center">
-              <div>
-                <h3 className="text-xl font-bold text-blue-500">
-                  Chat with Support
-                </h3>
-                <p className="text-sm text-gray-400">Ticket: #{trackedTicket.ticket_number}</p>
-              </div>
-              <button
-                onClick={closeUserChat}
-                className="text-gray-400 hover:text-gray-200 text-2xl leading-none w-8 h-8 flex items-center justify-center rounded-full transition hover:bg-gray-700"
-                aria-label="Close chat"
-              >
-                ×
-              </button>
-            </div>
-
-            {/* Messages */}
-            <div 
-              className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50/50 dark:bg-gray-900/50"
-              style={{ maxHeight: 'calc(80vh - 160px)' }}
-            >
-              {userMessages.length === 0 ? (
-                <p className="text-center text-gray-500 mt-4">No messages yet. Say hello!</p>
-              ) : (
-                userMessages.map((msg) => (
-                  <div
-                    key={msg.id}
-                    className={`flex ${msg.sender_type === 'user' ? 'justify-end' : 'justify-start'}`}
-                  >
-                    <div
-                      className={`max-w-xs px-4 py-2 rounded-lg ${
-                        msg.sender_type === 'user'
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-gray-300 text-gray-900'
-                      }`}
-                    >
-                      <p className="text-sm">{msg.message}</p>
-                      <p className="text-xs opacity-70 mt-1">
-                        {new Date(msg.created_at).toLocaleTimeString()}
-                      </p>
-                    </div>
-                  </div>
-                ))
-              )}
-              <div ref={messagesEndRef} />
-            </div>
-
-            {/* Input */}
-            <div className="p-4 border-t border-gray-700">
-              <div className="flex space-x-2">
-                <input
-                  type="text"
-                  value={newUserMessage}
-                  onChange={(e) => setNewUserMessage(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && sendUserMessage()}
-                  placeholder="Type your message..."
-                  className={`flex-1 border rounded px-3 py-2 ${
-                    darkMode
-                      ? 'bg-gray-700 border-gray-600 text-white'
-                      : 'bg-white border-gray-300'
-                  }`}
-                />
-                <button
-                  onClick={sendUserMessage}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
-                >
-                  Send
-                </button>
-              </div>
-            </div>
           </div>
         </div>
       )}
